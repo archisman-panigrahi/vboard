@@ -191,6 +191,12 @@ class VirtualKeyboard(Gtk.Window):
         self.set_focus_on_map(False)
         self.set_can_focus(False)
         self.set_accept_focus(False)
+        self.set_deletable(True)  # Keep close button
+        
+        # Remove minimize and maximize buttons
+        from gi.repository import Gdk
+        self.set_type_hint(Gdk.WindowTypeHint.UTILITY)
+        
         self.connect("delete-event", self.on_delete_event)
         self.connect("map-event", self.on_map_keep_above)
         self.connect("window-state-event", self.on_window_state_changed)
