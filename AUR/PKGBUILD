@@ -6,7 +6,7 @@ pkgver=1.3.0
 pkgrel=1
 pkgdesc='Wayland compatible lightweight virtual keyboard for GNU/Linux using python-uinput'
 arch=('any')
-url='https://github.com/mdev588/vboard'
+url='https://github.com/archisman-panigrahi/vboard'
 license=('LGPL2.1')
 install="${pkgname}.install"
 depends=(
@@ -23,7 +23,7 @@ makedepends=(
 optdepends=(
   'desktop-file-utils: provides update-desktop-database for helper scripts'
 )
-source=("${pkgname}-${pkgver}::git+https://github.com/mdev588/vboard.git#tag=v${pkgver}")
+source=("${pkgname}-${pkgver}::git+https://github.com/archisman-panigrahi/vboard.git#tag=v${pkgver}")
 sha256sums=('SKIP')
 
 build() {
