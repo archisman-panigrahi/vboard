@@ -37,6 +37,7 @@ run_script() {
 BINDIR="$(resolve_dir "$PREFIX" "$BINDIR_OPT")"
 DATADIR="$(resolve_dir "$PREFIX" "$DATADIR_OPT")"
 VBOARD_DATA_DIR="$DATADIR/vboard"
+VBOARD_PYTHON_DIR="$VBOARD_DATA_DIR/vboard"
 SCRIPTS_DIR="$VBOARD_DATA_DIR/scripts"
 
 export VBOARD_PREFIX="$PREFIX"
@@ -57,6 +58,15 @@ remove_file "$DATADIR/applications/io.github.archisman-panigrahi.vboard.desktop"
 remove_file "$DATADIR/icons/hicolor/scalable/apps/io.github.archisman-panigrahi.vboard.svg"
 remove_file "$VBOARD_DATA_DIR/uinput.md"
 remove_file "$VBOARD_DATA_DIR/LICENSE"
+remove_file "$VBOARD_PYTHON_DIR/__init__.py"
+remove_file "$VBOARD_PYTHON_DIR/__main__.py"
+remove_file "$VBOARD_PYTHON_DIR/app.py"
+remove_file "$VBOARD_PYTHON_DIR/constants.py"
+remove_file "$VBOARD_PYTHON_DIR/environment.py"
+remove_file "$VBOARD_PYTHON_DIR/gtk.py"
+remove_file "$VBOARD_PYTHON_DIR/input_backends.py"
+remove_file "$VBOARD_PYTHON_DIR/suggestions.py"
+remove_file "$VBOARD_PYTHON_DIR/window.py"
 remove_file "$SCRIPTS_DIR/install-kwin-rule.sh"
 remove_file "$SCRIPTS_DIR/uninstall-kwin-rule.sh"
 remove_file "$SCRIPTS_DIR/meson-post-install.sh"
@@ -69,6 +79,7 @@ remove_file "$SCRIPTS_DIR/install-plasma-osk.sh"
 remove_file "$SCRIPTS_DIR/uninstall-plasma-osk.sh"
 
 # Prune empty directories we touched; ignore non-empty dirs.
+rmdir "$VBOARD_PYTHON_DIR" 2>/dev/null || true
 rmdir "$SCRIPTS_DIR" 2>/dev/null || true
 rmdir "$VBOARD_DATA_DIR" 2>/dev/null || true
 rmdir "$DATADIR/applications" 2>/dev/null || true

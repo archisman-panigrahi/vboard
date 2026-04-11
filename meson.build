@@ -1,6 +1,7 @@
 project('vboard', version: '1.3')
 
 vboard_data_dir = join_paths(get_option('datadir'), 'vboard')
+vboard_python_dir = join_paths(vboard_data_dir, 'vboard')
 scripts_install_dir = join_paths(vboard_data_dir, 'scripts')
 applications_dir = join_paths(get_option('datadir'), 'applications')
 icons_dir = join_paths(get_option('datadir'), 'icons', 'hicolor', 'scalable', 'apps')
@@ -16,6 +17,21 @@ install_data(
   'uinput.md',
   'LICENSE',
   install_dir: vboard_data_dir,
+)
+
+install_data(
+  files(
+    'vboard/__init__.py',
+    'vboard/__main__.py',
+    'vboard/app.py',
+    'vboard/constants.py',
+    'vboard/environment.py',
+    'vboard/gtk.py',
+    'vboard/input_backends.py',
+    'vboard/suggestions.py',
+    'vboard/window.py',
+  ),
+  install_dir: vboard_python_dir,
 )
 
 install_data(
