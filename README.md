@@ -1,12 +1,14 @@
 # <img src="io.github.archisman-panigrahi.vboard.svg" align="left" width="100" height="100">  <br> vboard
-*A virtual keyboard for GNU/Linux with Wayland support and extensive customization options.*
+*A virtual keyboard for GNU/Linux with Wayland support and Ctrl, Alt, Tab and Super (Meta/Win) keys.*
+
+*Works with both GNOME and KDE Plasma*.
 
 
 <img src="screenshots/vboard_plasma.png" width="800">
 
 
 ## Overview
-vboard is a lightweight, customizable virtual keyboard designed for Linux systems with Wayland support. It provides an on-screen keyboard solution that's especially useful for:
+vboard is a lightweight, customizable virtual keyboard designed for Linux systems with Wayland support. It provides a full on-screen keyboard with modifier keys such as Ctrl, Alt, and Super (Meta/Win), which makes it especially useful for:
 
 - Touchscreen devices without physical keyboards
 - Systems with malfunctioning physical keyboards
@@ -18,7 +20,7 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 ## Features
 - **Customizable appearance**: Change background color, text color, and opacity
 - **Persistent settings**: Configuration is saved between sessions
-- **Modifier key support**: Use Shift, Ctrl, Alt and Super keys
+- **Modifier key support**: Provide Ctrl, Alt, Tab and Super (Meta/Win) keys
 - **Hold for repetitive clicks**: Keep holding the mouse button to trigger repeated clicks
 - **Word suggestions**: Offers completions from an installed Hunspell dictionary while you type with vboard
 - **Compact interface**: Headerbar with minimal controls to save screen space
@@ -30,7 +32,7 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 
 ### Ubuntu/Debian: `.deb` package
 
-Download the latest `.deb` from the [GitHub Releases](https://github.com/archisman-panigrahi/vboard/releases) page, then install it with:
+Download the latest `.deb` from the [GitHub Releases](https://github.com/archisman-panigrahi/vboard/releases) page for a lightweight on-screen keyboard with modifier keys such as Ctrl, Alt, Shift, and Super, then install it with:
 
 ```bash
 sudo apt install ./vboard_*.deb

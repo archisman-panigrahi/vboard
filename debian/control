@@ -21,5 +21,6 @@ Depends: ${misc:Depends},
  gir1.2-gtk-3.0,
  python3-uinput
 Recommends: hunspell-en-us, gir1.2-ayatanaappindicator3-0.1 | gir1.2-appindicator3-0.1
-Description: Wayland compatible lightweight virtual keyboard for GNU/Linux using python-uinput
+Description: Wayland virtual keyboard for GNU/Linux with modifier key support
  Vboard is a lightweight, customizable on-screen keyboard designed for Linux systems with Wayland support.
+ It includes modifier keys such as Ctrl, Alt, Tab and Super (Meta/Win) for desktop shortcuts and normal keyboard workflows.
