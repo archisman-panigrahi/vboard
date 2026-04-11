@@ -153,7 +153,7 @@ echo 'uinput' | sudo tee /etc/modules-load.d/uinput.conf
 ### Error: Permission denied
 Run uinput setup script:
 ```bash
-sudo ./scripts/setup-uinput.sh
+sudo bash scripts/setup-uinput.sh
 ```
 
 If needed, log out/log in or reboot.
