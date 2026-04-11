@@ -1,5 +1,5 @@
 Source: vboard
-Section: x11
+Section: utils
 Priority: optional
 Maintainer: Archisman Panigrahi <apandada1@gmail.com>
 Build-Depends: debhelper-compat (= 13),
@@ -21,5 +21,5 @@ Depends: ${misc:Depends},
  gir1.2-gtk-3.0,
  python3-uinput
 Recommends: gir1.2-ayatanaappindicator3-0.1 | gir1.2-appindicator3-0.1
-Description: Lightweight virtual keyboard for Wayland
+Description: Wayland compatible lightweight virtual keyboard for GNU/Linux using python-uinput
  Vboard is a lightweight, customizable on-screen keyboard designed for Linux systems with Wayland support.
