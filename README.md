@@ -25,6 +25,22 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 
 ## Installation
 
+### Quick Start for Ubuntu/Debian
+
+For Ubuntu and Debian-based systems, use the automated setup script for a complete installation:
+
+```bash
+git clone https://github.com/archisman-panigrahi/vboard.git
+cd vboard
+sudo bash setup-ubuntu-debian.sh
+```
+
+This script will handle all setup steps including dependency installation, uinput configuration, and system-wide installation. A system restart is recommended after installation.
+
+### Manual Installation
+
+For other distributions or custom setups, follow the steps below.
+
 ### 1. Install dependencies
 
 **For Debian/Ubuntu-based distributions:**
