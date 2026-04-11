@@ -193,9 +193,9 @@ class VirtualKeyboard(Gtk.Window):
         self.set_accept_focus(False)
         self.set_deletable(True)  # Keep close button
         
-        # Remove minimize and maximize buttons
+        # Remove minimize and maximize buttons while keeping resize handles
         from gi.repository import Gdk
-        self.set_type_hint(Gdk.WindowTypeHint.UTILITY)
+        self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
         
         self.connect("delete-event", self.on_delete_event)
         self.connect("map-event", self.on_map_keep_above)
