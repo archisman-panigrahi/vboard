@@ -61,3 +61,5 @@ else
   echo "vboard: /dev/uinput not found; ensure kernel supports uinput and module is available" >&2
   exit 1
 fi
+
+echo "vboard: if uinput permissions are not effective yet, log out/log in or restart your computer."
