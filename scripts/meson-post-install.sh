@@ -96,4 +96,4 @@ if [[ "$session_lc" != *kde* && "$session_lc" != *plasma* ]]; then
 fi
 
 refresh_plasma_cache
-echo "Open System Settings > Input Devices > Virtual Keyboard and select Vboard."
+echo "Open System Settings, search for Virtual Keyboard, and select Vboard."

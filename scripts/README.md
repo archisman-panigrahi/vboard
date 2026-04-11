@@ -5,12 +5,12 @@ This directory contains helper scripts used by vboard installation and integrati
 - install-kwin-rule.sh
   - Adds/updates a KWin rule named `vboard` in `kwinrulesrc`.
   - Rule keeps vboard above other windows, disables focus, and remembers position.
-  - Triggers `qdbus6 ... reconfigure` when available.
+  - Triggers `qdbus6 ... reconfigure` or falls back to `qdbus ... reconfigure` when available.
 
 - uninstall-kwin-rule.sh
   - Removes the `vboard` KWin rule from `kwinrulesrc`.
   - Cleans up empty config state where possible.
-  - Triggers `qdbus6 ... reconfigure` when available.
+  - Triggers `qdbus6 ... reconfigure` or falls back to `qdbus ... reconfigure` when available.
 
 - setup-uinput.sh
   - Prepares the uinput environment.

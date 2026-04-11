@@ -40,6 +40,24 @@ else
     CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/kwinrulesrc"
 fi
 
+reload_kwin_rules() {
+    local dbus_cmd=""
+
+    for candidate in qdbus6 qdbus; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            dbus_cmd="$candidate"
+            break
+        fi
+    done
+
+    if [[ -z "$dbus_cmd" ]]; then
+        echo "vboard: qdbus not found; KWin will reload rules later"
+        return 0
+    fi
+
+    "$dbus_cmd" org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
+}
+
 python3 - "$CONFIG_FILE" "$RULE_NAME" <<'PY'
 import configparser
 import os
@@ -79,6 +97,6 @@ elif config.has_section("General"):
         config.write(handle)
 PY
 
-qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
+reload_kwin_rules
 
 echo "Removed KWin rule from: $CONFIG_FILE [$RULE_NAME]"

@@ -109,7 +109,7 @@ sudo meson compile -C builddir uninstall-local
 
 ### KDE Plasma: enable vboard as the on-screen keyboard
 
-After installation, open **System Settings -> Keyboard -> Virtual Keyboard** and select **Vboard**.
+After installation, open **System Settings**, search for **Virtual Keyboard**, and select **Vboard**.
 
 ## Usage
 When launched, vboard presents a compact keyboard with a minimal interface. The keyboard includes:
