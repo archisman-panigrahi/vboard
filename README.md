@@ -27,7 +27,20 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 
 ## Installation
 
-### Quick Start for Ubuntu/Debian
+
+### PPA for Ubuntu
+
+Run the following commands to install vboard from its official PPA:
+
+```bash
+sudo add-apt-repository ppa:apandada1/vboard
+sudo apt update
+sudo apt install vboard
+```
+
+**Restart for changes to take effect**.
+
+### Install from source in Ubuntu/Debian
 
 For Ubuntu and Debian-based systems, use the automated setup script for a complete installation:
 
