@@ -3,6 +3,7 @@ project('vboard', version: '1.0.0')
 vboard_data_dir = join_paths(get_option('datadir'), 'vboard')
 scripts_install_dir = join_paths(vboard_data_dir, 'scripts')
 applications_dir = join_paths(get_option('datadir'), 'applications')
+icons_dir = join_paths(get_option('datadir'), 'icons', 'hicolor', 'scalable', 'apps')
 
 install_data(
   'vboard.py',
@@ -15,6 +16,12 @@ install_data(
   'uinput.md',
   'LICENSE',
   install_dir: vboard_data_dir,
+)
+
+install_data(
+  'vboard.svg',
+  install_dir: icons_dir,
+  rename: 'org.mdev.vboard.svg',
 )
 
 install_data(
@@ -41,4 +48,15 @@ meson.add_install_script(
   'scripts/meson-post-install.sh',
   join_paths(get_option('prefix'), scripts_install_dir),
   get_option('prefix'),
+)
+
+run_target(
+  'uninstall-local',
+  command: [
+    'bash',
+    files('scripts/meson-uninstall.sh'),
+    get_option('prefix'),
+    get_option('bindir'),
+    get_option('datadir'),
+  ],
 )
