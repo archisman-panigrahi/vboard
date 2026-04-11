@@ -54,7 +54,7 @@ cd vboard
 Run once with sudo before Meson install:
 
 ```bash
-sudo ./scripts/setup-uinput.sh
+sudo bash scripts/setup-uinput.sh
 ```
 
 If permissions still do not apply, log out/log in or restart your computer.
