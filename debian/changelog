@@ -1,3 +1,9 @@
+vboard (1.4.0-1) unstable; urgency=medium
+
+  * suggestion bar, modular app structure and Wayland app ID
+
+ -- Archisman Panigrahi <apandada1@gmail.com>  Sat, 11 Apr 2026 10:06:58 -0400
+
 vboard (1.3-1) unstable; urgency=medium
 
   * Initial Debian packaging.
