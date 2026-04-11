@@ -1,4 +1,4 @@
-# <img src="io.github.archisman-panigrahi.vboard.svg" align="left" width="64" height="64">  <br> vboard
+# <img src="io.github.archisman-panigrahi.vboard.svg" align="left" width="100" height="100">  <br> vboard
 *A virtual keyboard for GNU/Linux with Wayland support and extensive customization options.*
 
 
