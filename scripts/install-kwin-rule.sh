@@ -80,7 +80,7 @@ if not config.has_section(rule_name):
 values = {
     "Description": "vboard always on top, no focus, remember position",
     "Enabled": "true",
-    "title": "Vboard|Virtual Keyboard|vboard\\.py",
+    "title": "Vboard|vboard|vboard\\.py",
     "titlematch": "3",
     "position": "0,0",
     "positionrule": "4",
