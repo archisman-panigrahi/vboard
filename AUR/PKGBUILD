@@ -24,6 +24,7 @@ makedepends=(
 )
 optdepends=(
   'desktop-file-utils: provides update-desktop-database for helper scripts'
+  'hunspell-en_us: enables word suggestions'
 )
 provides=("${_pkgname}")
 conflicts=("${_pkgname}")

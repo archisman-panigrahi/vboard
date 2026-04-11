@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import bisect
 import configparser
 import os
 import subprocess
@@ -104,6 +105,33 @@ KEY_ROWS = [
     ["Shift_L", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "Shift_R", "↑"],
     ["Ctrl_L", "Super_L", "Alt_L", "Space", "Alt_R", "Super_R", "Ctrl_R", "←", "↓", "→"],
 ]
+
+SHIFTED_KEY_MAP = {
+    "`": "~",
+    "1": "!",
+    "2": "@",
+    "3": "#",
+    "4": "$",
+    "5": "%",
+    "6": "^",
+    "7": "&",
+    "8": "*",
+    "9": "(",
+    "0": ")",
+    "-": "_",
+    "=": "+",
+    "[": "{",
+    "]": "}",
+    "\\": "|",
+    ";": ":",
+    "'": '"',
+    ",": "<",
+    ".": ">",
+    "/": "?",
+}
+
+SUPPORTED_WORD_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'-")
+SUGGESTION_LIMIT = 5
 
 
 class InputBackend:
@@ -216,6 +244,162 @@ class UInputBackend(InputBackend):
             if modifiers.get(mod_key, False):
                 self.device.emit(self.key_map[mod_key], 0)
 
+
+class HunspellSuggestionEngine:
+    def __init__(self):
+        self.words = []
+        self.dictionary_path = None
+        self.loaded = False
+
+    def ensure_loaded(self):
+        if self.loaded:
+            return
+
+        self.loaded = True
+        self.dictionary_path = self.find_dictionary_path()
+        if self.dictionary_path is None:
+            return
+
+        words = set()
+        try:
+            with open(self.dictionary_path, "r", encoding="utf-8", errors="ignore") as handle:
+                for index, line in enumerate(handle):
+                    if index == 0 and line.strip().isdigit():
+                        continue
+
+                    word = self.parse_dictionary_line(line)
+                    if word is not None:
+                        words.add(word)
+        except OSError as exc:
+            print(f"Warning: Could not read Hunspell dictionary ({exc}). Suggestions disabled.")
+            self.dictionary_path = None
+            return
+
+        self.words = sorted(words)
+
+    def get_suggestions(self, prefix, limit=SUGGESTION_LIMIT):
+        self.ensure_loaded()
+        prefix = self.normalize_word(prefix)
+        if not prefix or not self.words:
+            return []
+
+        start_index = bisect.bisect_left(self.words, prefix)
+        matches = []
+        for word in self.words[start_index:]:
+            if not word.startswith(prefix):
+                break
+            if word == prefix:
+                continue
+            matches.append(word)
+            if len(matches) >= 50:
+                break
+
+        matches.sort(key=lambda word: (len(word), word))
+        return matches[:limit]
+
+    def find_dictionary_path(self):
+        candidates = self.get_dictionary_candidates()
+        search_dirs = [
+            os.path.expanduser("~/.local/share/hunspell"),
+            os.path.expanduser("~/.hunspell"),
+            "/usr/share/hunspell",
+            "/usr/share/myspell",
+            "/usr/share/myspell/dicts",
+        ]
+
+        for directory in search_dirs:
+            if not os.path.isdir(directory):
+                continue
+
+            for candidate in candidates:
+                path = os.path.join(directory, f"{candidate}.dic")
+                if os.path.isfile(path):
+                    return path
+
+        for directory in search_dirs:
+            if not os.path.isdir(directory):
+                continue
+
+            try:
+                for entry in sorted(os.listdir(directory)):
+                    if entry.endswith(".dic"):
+                        return os.path.join(directory, entry)
+            except OSError:
+                continue
+
+        return None
+
+    def get_dictionary_candidates(self):
+        candidates = []
+        for value in (
+            os.environ.get("LC_ALL", ""),
+            os.environ.get("LC_MESSAGES", ""),
+            os.environ.get("LC_CTYPE", ""),
+            os.environ.get("LANG", ""),
+            os.environ.get("LANGUAGE", ""),
+        ):
+            for locale_name in value.split(":"):
+                locale_name = locale_name.strip()
+                if not locale_name:
+                    continue
+
+                locale_name = locale_name.split(".", 1)[0]
+                locale_name = locale_name.split("@", 1)[0]
+                if not locale_name:
+                    continue
+
+                candidates.append(locale_name)
+                if "_" in locale_name:
+                    candidates.append(locale_name.split("_", 1)[0])
+
+        candidates.extend(["en_US", "en_GB", "en"])
+
+        ordered = []
+        seen = set()
+        for candidate in candidates:
+            if candidate not in seen:
+                ordered.append(candidate)
+                seen.add(candidate)
+        return ordered
+
+    def parse_dictionary_line(self, line):
+        token = line.strip()
+        if not token:
+            return None
+
+        token = token.split(maxsplit=1)[0]
+        if not token:
+            return None
+
+        word_chars = []
+        escaped = False
+        for char in token:
+            if escaped:
+                word_chars.append(char)
+                escaped = False
+                continue
+            if char == "\\":
+                escaped = True
+                continue
+            if char == "/":
+                break
+            word_chars.append(char)
+
+        return self.normalize_word("".join(word_chars))
+
+    def normalize_word(self, word):
+        if not word or not word.isascii():
+            return None
+
+        normalized = word.strip().lower()
+        if len(normalized) < 2:
+            return None
+        if any(char not in SUPPORTED_WORD_CHARS for char in normalized):
+            return None
+        if not any(char.isalpha() for char in normalized):
+            return None
+        return normalized
+
 class VirtualKeyboard(Gtk.Window):
     def __init__(self, application=None):
         super().__init__(title=APP_DISPLAY_NAME, name="toplevel")
@@ -296,6 +480,9 @@ class VirtualKeyboard(Gtk.Window):
         self.buttons=[]
         self.modifier_buttons={}
         self.row_buttons=[]
+        self.current_word = ""
+        self.suggestion_engine = HunspellSuggestionEngine()
+        self.suggestion_buttons = []
         self.color_combobox = Gtk.ComboBoxText()
         # Set the header bar as the titlebar of the window
         self.set_titlebar(self.header)
@@ -304,16 +491,34 @@ class VirtualKeyboard(Gtk.Window):
 
         self.create_settings()
 
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.add(content)
+
+        self.suggestion_revealer = Gtk.Revealer()
+        self.suggestion_revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN)
+        self.suggestion_revealer.set_reveal_child(True)
+        content.pack_start(self.suggestion_revealer, False, False, 0)
+
+        self.suggestion_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        self.suggestion_bar.set_name("suggestion-bar")
+        self.suggestion_bar.set_margin_start(3)
+        self.suggestion_bar.set_margin_end(3)
+        self.suggestion_bar.set_margin_top(3)
+        self.suggestion_bar.set_margin_bottom(1)
+        self.suggestion_revealer.add(self.suggestion_bar)
+        self.create_suggestion_buttons()
+
         grid = Gtk.Grid()  # Use Grid for layout
         grid.set_row_homogeneous(True)  # Allow rows to resize based on content
         grid.set_column_homogeneous(True)  # Columns are homogeneous
         grid.set_margin_start(3)
         grid.set_margin_end(3)
         grid.set_name("grid")
-        self.add(grid)
+        content.pack_start(grid, True, True, 0)
         self.apply_css()
         self.backend = UInputBackend()
         self.create_tray_icon()
+        GLib.idle_add(self.preload_suggestions)
 
         # Define rows for keys
         # Create each row and add it to the grid
@@ -484,6 +689,20 @@ class VirtualKeyboard(Gtk.Window):
 
         for label, color in self.colors:
             self.color_combobox.append_text(label)
+
+    def create_suggestion_buttons(self):
+        for _ in range(SUGGESTION_LIMIT):
+            button = Gtk.Button()
+            button.set_name("suggestion-button")
+            button.set_label(" ")
+            button.set_sensitive(False)
+            button.connect("clicked", self.on_suggestion_clicked)
+            self.suggestion_bar.pack_start(button, True, True, 0)
+            self.suggestion_buttons.append(button)
+
+    def preload_suggestions(self):
+        self.suggestion_engine.ensure_loaded()
+        return False
 
     def on_resize(self, widget, event):
         self.width, self.height = self.get_size()  # Get the current size after resize
@@ -664,6 +883,25 @@ class VirtualKeyboard(Gtk.Window):
             padding: 5px;
         }}
 
+       #vboard-main #suggestion-bar {{
+            background-color: transparent;
+       }}
+
+       #vboard-main #suggestion-button {{
+          border: 1px solid transparent;
+            background-image: none;
+            min-height: 34px;
+            padding: 2px 8px;
+       }}
+
+      #vboard-main #suggestion-button.has-suggestion {{
+          border: 1px solid {self.text_color};
+      }}
+
+      #vboard-main #suggestion-button.has-suggestion:hover {{
+            border: 1px solid #00CACB;
+       }}
+
 
         """
 
@@ -766,11 +1004,118 @@ class VirtualKeyboard(Gtk.Window):
         return True  # keep repeating
 
     def emit_key(self, key_event):
+        self.track_current_word(key_event)
         self.backend.emit_key(key_event, self.modifiers)
         self.update_label(False)
         for mod_key, active in self.modifiers.items():
             if active:
                 self.update_modifier(mod_key, False)
+
+    def track_current_word(self, key_event):
+        if self.has_active_command_modifier():
+            self.current_word = ""
+            self.update_suggestions()
+            return
+
+        if key_event == "Backspace":
+            self.current_word = self.current_word[:-1]
+            self.update_suggestions()
+            return
+
+        if key_event in {"Space", "Tab", "Enter", "Esc", "CapsLock", "←", "→", "↑", "↓"}:
+            self.current_word = ""
+            self.update_suggestions()
+            return
+
+        typed_char = self.key_event_to_character(key_event)
+        if typed_char and all(char in SUPPORTED_WORD_CHARS for char in typed_char):
+            self.current_word += typed_char
+        else:
+            self.current_word = ""
+
+        self.update_suggestions()
+
+    def has_active_command_modifier(self):
+        return any(
+            self.modifiers[modifier]
+            for modifier in ("Ctrl_L", "Ctrl_R", "Alt_L", "Alt_R", "Super_L", "Super_R")
+        )
+
+    def key_event_to_character(self, key_event):
+        shift_active = self.modifiers["Shift_L"] or self.modifiers["Shift_R"]
+
+        if len(key_event) == 1 and key_event.isalpha():
+            return key_event if shift_active else key_event.lower()
+
+        if key_event in SHIFTED_KEY_MAP:
+            return SHIFTED_KEY_MAP[key_event] if shift_active else key_event
+
+        return None
+
+    def update_suggestions(self):
+        suggestions = self.suggestion_engine.get_suggestions(self.current_word, SUGGESTION_LIMIT)
+
+        for index, button in enumerate(self.suggestion_buttons):
+            style_context = button.get_style_context()
+            if index < len(suggestions):
+                button.set_label(self.apply_suggestion_case(suggestions[index]))
+                button.set_sensitive(True)
+                style_context.add_class("has-suggestion")
+            else:
+                button.set_label(" ")
+                button.set_sensitive(False)
+                style_context.remove_class("has-suggestion")
+            button.show()
+
+        self.suggestion_revealer.set_reveal_child(True)
+
+    def apply_suggestion_case(self, suggestion):
+        if self.current_word.isupper():
+            return suggestion.upper()
+        if self.current_word[:1].isupper() and self.current_word[1:].islower():
+            return suggestion.capitalize()
+        return suggestion
+
+    def on_suggestion_clicked(self, widget):
+        suggestion = widget.get_label()
+        if not suggestion or not self.current_word:
+            return
+
+        completion = suggestion[len(self.current_word):]
+        if not completion:
+            return
+
+        for modifier in MODIFIER_KEYS:
+            if self.modifiers[modifier]:
+                self.update_modifier(modifier, False)
+
+        for char in completion:
+            key_event, modifiers = self.character_to_key_event(char)
+            if key_event is None:
+                continue
+            self.backend.emit_key(key_event, modifiers)
+
+        self.current_word = suggestion
+        self.update_suggestions()
+
+    def character_to_key_event(self, char):
+        modifiers = {modifier: False for modifier in MODIFIER_KEYS}
+
+        if char.isalpha():
+            key_event = char.upper()
+            if char.isupper():
+                modifiers["Shift_L"] = True
+            return key_event, modifiers
+
+        for key_event, shifted_char in SHIFTED_KEY_MAP.items():
+            if char == shifted_char:
+                modifiers["Shift_L"] = True
+                return key_event, modifiers
+
+        if char in SHIFTED_KEY_MAP:
+            return char, modifiers
+
+        return None, modifiers
 
     def read_settings(self):
         # Ensure the config directory exists
