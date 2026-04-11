@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  configure|triggered)
+    if [ -x /usr/share/vboard/scripts/meson-post-install.sh ]; then
+      /usr/share/vboard/scripts/meson-post-install.sh /usr/share/vboard/scripts /usr || true
+    fi
+    ;;
+esac
+
+exit 0

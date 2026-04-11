@@ -1,0 +1,25 @@
+Source: vboard
+Section: x11
+Priority: optional
+Maintainer: Archisman Panigrahi <apandada1@gmail.com>
+Build-Depends: debhelper-compat (= 13),
+ dh-python,
+ meson,
+ ninja-build,
+ pkg-config,
+ python3,
+ python3-gi,
+ gir1.2-gtk-3.0
+Standards-Version: 4.7.0
+Homepage: https://github.com/archisman-panigrahi/vboard
+
+Package: vboard
+Architecture: all
+Depends: ${misc:Depends},
+ ${python3:Depends},
+ python3-gi,
+ gir1.2-gtk-3.0,
+ python3-uinput
+Recommends: gir1.2-ayatanaappindicator3-0.1 | gir1.2-appindicator3-0.1
+Description: Lightweight virtual keyboard for Wayland
+ Vboard is a lightweight, customizable on-screen keyboard designed for Linux systems with Wayland support.
