@@ -19,6 +19,7 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 - **Persistent settings**: Configuration is saved between sessions
 - **Modifier key support**: Use Shift, Ctrl, Alt and Super keys
 - **Hold for repetitive clicks**: Keep holding the mouse button to trigger repeated clicks
+- **Word suggestions**: Offers completions from an installed Hunspell dictionary while you type with vboard
 - **Compact interface**: Headerbar with minimal controls to save screen space
 - **Always-on-top**: Stays above other windows for easy access
 - **Tray icon support**: Keeps vboard running in the background and you can quickly reopen it when needed
@@ -48,6 +49,10 @@ For other distributions or custom setups, follow the steps below.
 ```bash
 sudo apt install python3-gi gir1.2-gtk-3.0 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build --no-install-recommends
 ```
+Optional for word suggestions:
+```bash
+sudo apt install hunspell-en-us
+```
 
 **For Fedora-based distributions:**
 ```bash
@@ -57,6 +62,10 @@ sudo dnf install python3-gobject gtk3 python3-uinput libappindicator-gtk3 meson 
 **For Arch-based distributions:**
 ```bash
 sudo pacman -S python-gobject gtk3 python-uinput libayatana-appindicator meson ninja
+```
+Optional for word suggestions:
+```bash
+sudo pacman -S hunspell-en_us
 ```
 
 ### 2. Download latest master
@@ -116,6 +125,7 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 - Standard QWERTY layout keys
 - Arrow keys
 - Modifier keys (Shift, Ctrl, Alt, Super)
+- Header-bar suggestions that appear while typing words through vboard when a system Hunspell dictionary is available
 
 ### Interface Controls
 - ☰ (menu) - Toggle visibility of other interface controls
