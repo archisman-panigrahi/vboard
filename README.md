@@ -106,6 +106,10 @@ For system installs:
 sudo meson compile -C builddir uninstall-local
 ```
 
+### KDE Plasma: enable vboard as the on-screen keyboard
+
+After installation, open **System Settings -> Keyboard -> Virtual Keyboard** and select **Vboard**.
+
 ## Usage
 When launched, vboard presents a compact keyboard with a minimal interface. The keyboard includes:
 - Standard QWERTY layout keys
@@ -161,4 +165,3 @@ vboard is licensed under the GNU Lesser General Public License v2.1. See `LICENS
 
 ## Note
 Currently only the QWERTY US layout is supported.
-
