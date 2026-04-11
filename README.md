@@ -29,17 +29,17 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 
 **For Debian/Ubuntu-based distributions:**
 ```bash
-sudo apt install python3-gi gir1.2-gtk-3.0 python3-uinput meson ninja-build
+sudo apt install python3-gi gir1.2-gtk-3.0 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build
 ```
 
 **For Fedora-based distributions:**
 ```bash
-sudo dnf install python3-gobject gtk3 python3-uinput meson ninja-build
+sudo dnf install python3-gobject gtk3 python3-uinput libappindicator-gtk3 meson ninja-build
 ```
 
 **For Arch-based distributions:**
 ```bash
-sudo pacman -S python-gobject gtk3 python-uinput meson ninja
+sudo pacman -S python-gobject gtk3 python-uinput libayatana-appindicator meson ninja
 ```
 
 ### 2. Download latest master
