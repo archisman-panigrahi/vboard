@@ -29,6 +29,7 @@ install_data(
   'scripts/uninstall-plasma-osk.sh',
   'scripts/install-kwin-rule.sh',
   'scripts/uninstall-kwin-rule.sh',
+  'scripts/setup-uinput.sh',
   install_dir: scripts_install_dir,
   install_mode: 'rwxr-xr-x',
 )

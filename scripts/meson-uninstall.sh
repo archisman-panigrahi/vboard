@@ -64,6 +64,7 @@ remove_file "$SCRIPTS_DIR/install-plasma-osk.sh"
 remove_file "$SCRIPTS_DIR/uninstall-plasma-osk.sh"
 remove_file "$SCRIPTS_DIR/install-kwin-rule.sh"
 remove_file "$SCRIPTS_DIR/uninstall-kwin-rule.sh"
+remove_file "$SCRIPTS_DIR/setup-uinput.sh"
 
 # Prune empty directories we touched; ignore non-empty dirs.
 rmdir "$SCRIPTS_DIR" 2>/dev/null || true

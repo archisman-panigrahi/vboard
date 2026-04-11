@@ -15,14 +15,6 @@ if [[ -n "${DESTDIR:-}" ]]; then
   exit 0
 fi
 
-session_hint="${XDG_CURRENT_DESKTOP:-} ${DESKTOP_SESSION:-} ${KDE_FULL_SESSION:-}"
-session_lc="$(printf '%s' "$session_hint" | tr '[:upper:]' '[:lower:]')"
-
-if [[ "$session_lc" != *kde* && "$session_lc" != *plasma* ]]; then
-  echo "vboard: KDE/Plasma session not detected; skipping OSK and KWin setup"
-  exit 0
-fi
-
 run_script() {
   local script_path="$1"
   shift
@@ -43,6 +35,25 @@ fi
 
 export VBOARD_PREFIX="$INSTALL_PREFIX"
 export VBOARD_INSTALL_SCOPE="$scope"
+
+if [[ ! -x "$SCRIPTS_DIR/setup-uinput.sh" ]]; then
+  echo "vboard: missing required script: $SCRIPTS_DIR/setup-uinput.sh" >&2
+  exit 1
+fi
+
+if [[ "$EUID" -eq 0 ]]; then
+  bash "$SCRIPTS_DIR/setup-uinput.sh" "--scope=$scope"
+else
+  echo "vboard: non-root install detected; skipping uinput setup"
+fi
+
+session_hint="${XDG_CURRENT_DESKTOP:-} ${DESKTOP_SESSION:-} ${KDE_FULL_SESSION:-}"
+session_lc="$(printf '%s' "$session_hint" | tr '[:upper:]' '[:lower:]')"
+
+if [[ "$session_lc" != *kde* && "$session_lc" != *plasma* ]]; then
+  echo "vboard: KDE/Plasma session not detected; skipping OSK and KWin setup"
+  exit 0
+fi
 
 run_script "$SCRIPTS_DIR/install-plasma-osk.sh" "--scope=$scope"
 run_script "$SCRIPTS_DIR/install-kwin-rule.sh" "--scope=$scope"
