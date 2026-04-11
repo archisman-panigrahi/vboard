@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPTS_DIR="${1:-}"
 INSTALL_PREFIX="${2:-/usr/local}"
+APPLICATIONS_DIR="${3:-$INSTALL_PREFIX/share/applications}"
 
 if [[ -z "$SCRIPTS_DIR" ]]; then
   echo "vboard: missing scripts directory argument; skipping KDE post-install hooks"
@@ -28,6 +29,41 @@ run_script() {
   fi
 }
 
+refresh_desktop_database() {
+  local applications_dir="$1"
+  if [[ -z "$applications_dir" ]]; then
+    return 0
+  fi
+
+  mkdir -p "$applications_dir"
+  update-desktop-database "$applications_dir" >/dev/null 2>&1 || true
+}
+
+refresh_plasma_cache() {
+  local sycoca_cmd=""
+
+  for candidate in kbuildsycoca6 kbuildsycoca5 kbuildsycoca; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      sycoca_cmd="$candidate"
+      break
+    fi
+  done
+
+  if [[ -z "$sycoca_cmd" ]]; then
+    echo "vboard: kbuildsycoca not found; Plasma cache will refresh later"
+    return 0
+  fi
+
+  if [[ "$EUID" -eq 0 && "$scope" == "system" ]]; then
+    echo "vboard: root install detected; skipping per-user Plasma cache refresh"
+    return 0
+  fi
+
+  if ! "$sycoca_cmd" --noincremental >/dev/null 2>&1; then
+    echo "vboard: warning: failed to refresh Plasma cache with $sycoca_cmd"
+  fi
+}
+
 scope="system"
 if [[ "$INSTALL_PREFIX" == "$HOME"* ]]; then
   scope="user"
@@ -35,6 +71,8 @@ fi
 
 export VBOARD_PREFIX="$INSTALL_PREFIX"
 export VBOARD_INSTALL_SCOPE="$scope"
+
+refresh_desktop_database "$APPLICATIONS_DIR"
 
 if [[ ! -x "$SCRIPTS_DIR/setup-uinput.sh" ]]; then
   echo "vboard: missing required script: $SCRIPTS_DIR/setup-uinput.sh" >&2
@@ -47,13 +85,15 @@ else
   echo "vboard: non-root install detected; skipping uinput setup"
 fi
 
+run_script "$SCRIPTS_DIR/install-kwin-rule.sh" "--scope=$scope"
+
 session_hint="${XDG_CURRENT_DESKTOP:-} ${DESKTOP_SESSION:-} ${KDE_FULL_SESSION:-}"
 session_lc="$(printf '%s' "$session_hint" | tr '[:upper:]' '[:lower:]')"
 
 if [[ "$session_lc" != *kde* && "$session_lc" != *plasma* ]]; then
-  echo "vboard: KDE/Plasma session not detected; skipping OSK and KWin setup"
+  echo "vboard: KDE/Plasma session not detected; skipping Plasma cache refresh"
   exit 0
 fi
 
-run_script "$SCRIPTS_DIR/install-plasma-osk.sh" "--scope=$scope"
-run_script "$SCRIPTS_DIR/install-kwin-rule.sh" "--scope=$scope"
+refresh_plasma_cache
+echo "Open System Settings > Input Devices > Virtual Keyboard and select Vboard."

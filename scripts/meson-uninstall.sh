@@ -42,8 +42,6 @@ SCRIPTS_DIR="$VBOARD_DATA_DIR/scripts"
 export VBOARD_PREFIX="$PREFIX"
 export VBOARD_INSTALL_SCOPE="${VBOARD_INSTALL_SCOPE:-auto}"
 
-# Undo user/system integration before removing the helper scripts themselves.
-run_script "$SCRIPTS_DIR/uninstall-plasma-osk.sh" "--scope=auto"
 run_script "$SCRIPTS_DIR/uninstall-kwin-rule.sh" "--scope=auto"
 
 remove_file() {
@@ -57,14 +55,18 @@ remove_file() {
 remove_file "$BINDIR/vboard"
 remove_file "$DATADIR/applications/io.github.archisman-panigrahi.vboard.desktop"
 remove_file "$DATADIR/icons/hicolor/scalable/apps/io.github.archisman-panigrahi.vboard.svg"
-remove_file "$VBOARD_DATA_DIR/io.github.archisman-panigrahi.vboard.desktop"
 remove_file "$VBOARD_DATA_DIR/uinput.md"
 remove_file "$VBOARD_DATA_DIR/LICENSE"
-remove_file "$SCRIPTS_DIR/install-plasma-osk.sh"
-remove_file "$SCRIPTS_DIR/uninstall-plasma-osk.sh"
 remove_file "$SCRIPTS_DIR/install-kwin-rule.sh"
 remove_file "$SCRIPTS_DIR/uninstall-kwin-rule.sh"
+remove_file "$SCRIPTS_DIR/meson-post-install.sh"
 remove_file "$SCRIPTS_DIR/setup-uinput.sh"
+
+# Legacy cleanup for installs that duplicated the desktop file into share/vboard
+# and shipped dedicated Plasma desktop-entry helper scripts.
+remove_file "$VBOARD_DATA_DIR/io.github.archisman-panigrahi.vboard.desktop"
+remove_file "$SCRIPTS_DIR/install-plasma-osk.sh"
+remove_file "$SCRIPTS_DIR/uninstall-plasma-osk.sh"
 
 # Prune empty directories we touched; ignore non-empty dirs.
 rmdir "$SCRIPTS_DIR" 2>/dev/null || true
