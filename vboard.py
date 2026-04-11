@@ -388,6 +388,7 @@ class VirtualKeyboard(Gtk.Window):
             "A lightweight virtual keyboard for Linux and Wayland.\n\n"
             "Originally created by mdev588. The original project was archived, "
             "and it is now maintained by Archisman Panigrahi.\n\n"
+            "Icon by honjow.\n\n"
             "Original project: https://github.com/mdev588/vboard\n"
         )
         about_dialog.set_copyright(
