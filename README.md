@@ -240,7 +240,7 @@ sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput
 Contributions are welcome.
 
 ## License
-vboard is licensed under the GNU Lesser General Public License v2.1. See `LICENSE` for details.
+vboard is licensed under the GNU General Public License v3. See `LICENSE` for details.
 
 ## Note
 Currently only the QWERTY US layout is supported.

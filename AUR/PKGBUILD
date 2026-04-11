@@ -8,7 +8,7 @@ pkgrel=1
 pkgdesc='Wayland compatible lightweight virtual keyboard for GNU/Linux using python-uinput'
 arch=('any')
 url='https://github.com/archisman-panigrahi/vboard'
-license=('LGPL2.1')
+license=('GPL3')
 install="${pkgname}.install"
 depends=(
   'python'
