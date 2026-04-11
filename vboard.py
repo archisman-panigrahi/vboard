@@ -300,6 +300,13 @@ class VirtualKeyboard(Gtk.Window):
             self.tray_toggle_item.connect("activate", self.on_tray_toggle)
             self.tray_menu.append(self.tray_toggle_item)
 
+            separator1 = Gtk.SeparatorMenuItem()
+            self.tray_menu.append(separator1)
+
+            about_item = Gtk.MenuItem(label="About")
+            about_item.connect("activate", self.on_tray_about)
+            self.tray_menu.append(about_item)
+
             quit_item = Gtk.MenuItem(label="Quit")
             quit_item.connect("activate", self.on_tray_quit)
             self.tray_menu.append(quit_item)
@@ -318,6 +325,13 @@ class VirtualKeyboard(Gtk.Window):
                 self.tray_toggle_item = Gtk.MenuItem(label="Hide")
                 self.tray_toggle_item.connect("activate", self.on_tray_toggle)
                 self.tray_menu.append(self.tray_toggle_item)
+
+                separator1 = Gtk.SeparatorMenuItem()
+                self.tray_menu.append(separator1)
+
+                about_item = Gtk.MenuItem(label="About")
+                about_item.connect("activate", self.on_tray_about)
+                self.tray_menu.append(about_item)
 
                 quit_item = Gtk.MenuItem(label="Quit")
                 quit_item.connect("activate", self.on_tray_quit)
@@ -354,6 +368,34 @@ class VirtualKeyboard(Gtk.Window):
 
     def on_tray_toggle(self, widget):
         self.on_tray_activate(None)
+
+    def on_tray_about(self, widget):
+        """Show the About dialog."""
+        about_dialog = Gtk.AboutDialog()
+        about_dialog.set_modal(True)
+        about_dialog.set_program_name("Vboard")
+        about_dialog.set_version("1.3")
+        about_dialog.set_comments(
+            "A lightweight virtual keyboard for Linux and Wayland.\n\n"
+            "Originally created by mdev588. The original project was archived, "
+            "and it is now maintained by Archisman Panigrahi.\n\n"
+            "Original project: https://github.com/mdev588/vboard\n"
+        )
+        about_dialog.set_copyright(
+            "Copyright © 2025 mdev588\n"
+            "Copyright © 2026 Archisman Panigrahi"
+        )
+        about_dialog.set_website("https://github.com/archisman-panigrahi/vboard")
+        about_dialog.set_website_label("Homepage")
+        icon_theme = Gtk.IconTheme.get_default()
+        preferred_icon = "io.github.archisman-panigrahi.vboard"
+        fallback_icon = "preferences-desktop-keyboard"
+        if icon_theme and icon_theme.has_icon(preferred_icon):
+            about_dialog.set_logo_icon_name(preferred_icon)
+        else:
+            about_dialog.set_logo_icon_name(fallback_icon)
+        about_dialog.run()
+        about_dialog.destroy()
 
     def on_tray_quit(self, widget):
         self.exiting = True
