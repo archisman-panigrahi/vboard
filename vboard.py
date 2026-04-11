@@ -574,7 +574,7 @@ class VirtualKeyboard(Gtk.Window):
 
         #vboard-main #grid button {{
                     min-width: 10px;
-                    border: 1px solid white;
+                    border: 1px solid {self.text_color};
                     background-image: none;
                     padding: 1px;
                     margin: 1px;
@@ -603,7 +603,7 @@ class VirtualKeyboard(Gtk.Window):
 
        #vboard-main #esc-button {{
             min-width: 60px;
-          border: 1px solid white;
+          border: 1px solid {self.text_color};
           background-image: none;
        }}
 
