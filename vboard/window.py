@@ -459,6 +459,11 @@ class VirtualKeyboard(Gtk.Window):
             padding: 2px 8px;
         }}
 
+        #vboard-main #suggestion-button label,
+        #vboard-main #suggestion-button:disabled label {{
+            color: {self.text_color};
+        }}
+
         #vboard-main #suggestion-button.has-suggestion {{
             border: 1px solid {self.text_color};
         }}
