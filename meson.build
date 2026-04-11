@@ -19,9 +19,8 @@ install_data(
 )
 
 install_data(
-  'vboard.svg',
+  'io.github.archisman-panigrahi.vboard.svg',
   install_dir: icons_dir,
-  rename: 'io.github.archisman-panigrahi.vboard.svg',
 )
 
 install_data(

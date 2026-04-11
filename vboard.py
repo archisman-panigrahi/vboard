@@ -257,7 +257,7 @@ class VirtualKeyboard(Gtk.Window):
         self.color_combobox = Gtk.ComboBoxText()
         # Set the header bar as the titlebar of the window
         self.set_titlebar(self.header)
-        self.set_default_icon_name("preferences-desktop-keyboard") 
+        self.set_default_icon_name(self.get_app_icon_name())
 
         self.create_settings()
 
@@ -277,7 +277,16 @@ class VirtualKeyboard(Gtk.Window):
         for row_index, keys in enumerate(KEY_ROWS):
             self.create_row(grid, row_index, keys)
 
+    def get_app_icon_name(self):
+        icon_theme = Gtk.IconTheme.get_default()
+        preferred_icon = "io.github.archisman-panigrahi.vboard"
+        fallback_icon = "preferences-desktop-keyboard"
+        if icon_theme and icon_theme.has_icon(preferred_icon):
+            return preferred_icon
+        return fallback_icon
+
     def create_tray_icon(self):
+        icon_name = self.get_app_icon_name()
         if APPINDICATOR_AVAILABLE:
             if APPINDICATOR_BACKEND == "ayatana":
                 # Suppress upstream runtime deprecation spam from libayatana-appindicator.
@@ -290,7 +299,7 @@ class VirtualKeyboard(Gtk.Window):
 
             self.tray_icon = AppIndicator3.Indicator.new(
                 "vboard",
-                "preferences-desktop-keyboard",
+                icon_name,
                 AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
             )
             self.tray_icon.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
@@ -316,7 +325,7 @@ class VirtualKeyboard(Gtk.Window):
             # Fallback to Gtk.StatusIcon if appindicator is not available
             try:
                 self.tray_icon = Gtk.StatusIcon()
-                self.tray_icon.set_from_icon_name("preferences-desktop-keyboard")
+                self.tray_icon.set_from_icon_name(icon_name)
                 self.tray_icon.set_tooltip_text("Vboard - Virtual Keyboard")
                 self.tray_icon.connect("activate", self.on_statusicon_activate)
                 self.tray_icon.connect("popup-menu", self.on_statusicon_popup_menu)
