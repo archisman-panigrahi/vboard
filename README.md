@@ -21,6 +21,7 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 - **Hold for repetitive clicks**: Keep holding the mouse button to trigger repeated clicks
 - **Compact interface**: Headerbar with minimal controls to save screen space
 - **Always-on-top**: Stays above other windows for easy access
+- **Tray icon support**: Keeps vboard running in the background and you can quickly reopen it when needed
 - **uinput input backend**: Injects keys through Linux `uinput`
 
 ## Installation
