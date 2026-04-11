@@ -4,7 +4,7 @@ This directory contains helper scripts used by vboard installation and integrati
 
 - install-kwin-rule.sh
   - Adds/updates a KWin rule named `vboard` in `kwinrulesrc`.
-  - Rule matches `WM_CLASS=vboard`, keeps vboard above other windows, disables focus, and remembers position.
+  - Rule matches vboard's application identity in KWin, keeps vboard above other windows, disables focus, and remembers position.
   - Triggers `qdbus6 ... reconfigure` or falls back to `qdbus ... reconfigure` when available.
 
 - uninstall-kwin-rule.sh

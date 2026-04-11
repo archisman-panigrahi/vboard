@@ -6,7 +6,6 @@ Comment=Virtual keyboard
 Exec=vboard
 Icon=io.github.archisman-panigrahi.vboard
 Terminal=false
-StartupWMClass=vboard
 X-KDE-Wayland-VirtualKeyboard=true
 Categories=Utility;Accessibility;
 StartupNotify=true

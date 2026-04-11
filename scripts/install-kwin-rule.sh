@@ -2,6 +2,7 @@
 set -euo pipefail
 
 RULE_NAME="vboard"
+APP_ID="io.github.archisman-panigrahi.vboard"
 DEFAULT_SCOPE="${VBOARD_INSTALL_SCOPE:-auto}"
 SCOPE="$DEFAULT_SCOPE"
 SYSTEM_PREFIX="${VBOARD_PREFIX:-/usr/local}"
@@ -58,13 +59,14 @@ reload_kwin_rules() {
     "$dbus_cmd" org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
 }
 
-python3 - "$CONFIG_FILE" "$RULE_NAME" <<'PY'
+python3 - "$CONFIG_FILE" "$RULE_NAME" "$APP_ID" <<'PY'
 import configparser
 import os
 import sys
 
 config_file = sys.argv[1]
 rule_name = sys.argv[2]
+app_id = sys.argv[3]
 
 config = configparser.ConfigParser(interpolation=None, allow_no_value=True)
 config.optionxform = str
@@ -84,10 +86,11 @@ for option in list(config.options(rule_name)):
 for legacy_key in ("title", "titlematch"):
     config.remove_option(rule_name, legacy_key)
 
+# KWin stores the application-identity matcher under the historical wmclass keys.
 values = {
     "Description": "vboard always on top, no focus, remember position",
     "Enabled": "true",
-    "wmclass": "vboard",
+    "wmclass": app_id,
     "wmclassmatch": "1",
     "wmclasscomplete": "false",
     "position": "0,0",

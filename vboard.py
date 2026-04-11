@@ -3,15 +3,19 @@
 import configparser
 import os
 import subprocess
+import sys
 
 import gi
 
+gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
+from gi.repository import Gio
 from gi.repository import GLib
+from gi.repository import Gdk
 from gi.repository import Gtk
 
 APP_DISPLAY_NAME = "Vboard"
-APP_WM_CLASS = "vboard"
+APP_ID = "io.github.archisman-panigrahi.vboard"
 
 
 def get_desktop_environment():
@@ -213,8 +217,10 @@ class UInputBackend(InputBackend):
                 self.device.emit(self.key_map[mod_key], 0)
 
 class VirtualKeyboard(Gtk.Window):
-    def __init__(self):
+    def __init__(self, application=None):
         super().__init__(title=APP_DISPLAY_NAME, name="toplevel")
+        if application is not None:
+            self.set_application(application)
 
         self.exiting = False
         self.set_border_width(0)
@@ -230,10 +236,7 @@ class VirtualKeyboard(Gtk.Window):
         self.set_deletable(True)  # Keep close button
         
         # Remove minimize and maximize buttons while keeping resize handles
-        from gi.repository import Gdk
         self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
-        self.set_wmclass(APP_WM_CLASS, APP_WM_CLASS)
-        self.set_role(APP_WM_CLASS)
         
         self.connect("delete-event", self.on_delete_event)
         self.connect("map-event", self.on_map_keep_above)
@@ -820,16 +823,42 @@ class VirtualKeyboard(Gtk.Window):
             print(f"Warning: Could not write to config file ({e}). Changes will not be saved.")
 
 
+class VboardApplication(Gtk.Application):
+    def __init__(self):
+        super().__init__(
+            application_id=APP_ID,
+            flags=Gio.ApplicationFlags.FLAGS_NONE,
+        )
+        self.window = None
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        GLib.set_prgname(APP_ID)
+        GLib.set_application_name(APP_DISPLAY_NAME)
+
+    def do_activate(self):
+        if self.window is None:
+            self.window = VirtualKeyboard(application=self)
+            self.window.connect("destroy", lambda w: w.save_settings())
+            self.window.connect("destroy", self.on_window_destroy)
+            self.window.connect("configure-event", self.window.on_resize)
+            if self.window.config_pos_x > 0 and self.window.config_pos_y > 0:
+                self.window.move(self.window.config_pos_x, self.window.config_pos_y)
+            self.window.show_all()
+            self.window.change_visibility()
+            return
+
+        self.window.show_all()
+        self.window.present()
+        self.window.request_keep_above()
+        self.window.update_tray_menu()
+
+    def on_window_destroy(self, window):
+        self.window = None
+        self.quit()
+
+
 if __name__ == "__main__":
     install_kwin_rule_if_needed()
-    GLib.set_prgname(APP_WM_CLASS)
-    GLib.set_application_name(APP_DISPLAY_NAME)
-    win = VirtualKeyboard()
-    win.connect("destroy", Gtk.main_quit)
-    win.connect("destroy", lambda w: win.save_settings())
-    win.connect("configure-event", win.on_resize)
-    if win.config_pos_x > 0 and win.config_pos_y > 0:
-        win.move(win.config_pos_x, win.config_pos_y)
-    win.show_all()
-    win.change_visibility()
-    Gtk.main()
+    app = VboardApplication()
+    raise SystemExit(app.run(sys.argv))
