@@ -1,0 +1,13 @@
+post_install() {
+  if [[ -x /usr/share/vboard/scripts/meson-post-install.sh ]]; then
+    /usr/share/vboard/scripts/meson-post-install.sh /usr/share/vboard/scripts /usr || true
+  fi
+}
+
+post_upgrade() {
+  post_install
+}
+
+post_remove() {
+  :
+}
