@@ -29,7 +29,7 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 
 ### Ubuntu/Debian: `.deb` package
 
-Download the latest `.deb` from the GitHub Releases page, then install it with:
+Download the latest `.deb` from the [GitHub Releases](https://github.com/archisman-panigrahi/vboard/releases) page, then install it with:
 
 ```bash
 sudo apt install ./vboard_*.deb
