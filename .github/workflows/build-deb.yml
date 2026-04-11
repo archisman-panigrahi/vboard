@@ -1,0 +1,49 @@
+name: Build Debian Package
+
+'on':
+  push:
+    branches:
+      - kde-fix
+  pull_request:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            dpkg-dev \
+            devscripts \
+            equivs \
+            fakeroot \
+            build-essential
+          # Install Build-Depends from debian/control to keep CI aligned with packaging metadata.
+          sudo mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' debian/control
+
+      - name: Build Debian package
+        run: dpkg-buildpackage -us -uc -b
+
+      - name: Collect Debian artifacts
+        run: |
+          mkdir -p artifacts
+          cp -v ../*.deb ../*.buildinfo ../*.changes artifacts/
+
+      - name: Upload Debian artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: vboard-deb-${{ github.sha }}
+          path: |
+            artifacts/*.deb
+            artifacts/*.buildinfo
+            artifacts/*.changes
+          if-no-files-found: error

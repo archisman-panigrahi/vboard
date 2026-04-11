@@ -27,10 +27,22 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 
 ## Installation
 
+### Ubuntu/Debian: `.deb` package
+
+Download the latest `.deb` from the GitHub Releases page, then install it with:
+
+```bash
+sudo apt install ./vboard_*.deb
+```
+
+The package post-install step sets up `uinput` and installs the `udev` rule needed for desktop-session access to `/dev/uinput`.
+
+Log out and back in, or reboot, after installation.
 
 ### PPA for Ubuntu
 
-Run the following commands to install vboard from its official PPA:
+You can also use the following PPA in Ubuntu.
+Run the following commands one by one:
 
 ```bash
 sudo add-apt-repository ppa:apandada1/vboard
@@ -40,9 +52,9 @@ sudo apt install vboard
 
 **Restart for changes to take effect**.
 
-### Install from source in Ubuntu/Debian
+### Ubuntu/Debian: install from source
 
-For Ubuntu and Debian-based systems, use the automated setup script for a complete installation:
+For the latest unreleased changes on Ubuntu and Debian-based systems, use the automated setup script:
 
 ```bash
 git clone https://github.com/archisman-panigrahi/vboard.git
@@ -52,9 +64,9 @@ sudo bash setup-ubuntu-debian.sh
 
 This script will handle all setup steps including dependency installation, uinput configuration, and system-wide installation. A system restart is recommended after installation.
 
-### Manual Installation
+### Manual installation on other distros
 
-For other distributions or custom setups, follow the steps below.
+For Debian/Ubuntu, Fedora, Arch, and other distributions, install the dependencies manually and then build with Meson.
 
 ### 1. Install dependencies
 
@@ -71,6 +83,10 @@ sudo apt install hunspell-en-us
 ```bash
 sudo dnf install python3-gobject gtk3 python3-uinput libappindicator-gtk3 meson ninja-build
 ```
+Optional for word suggestions:
+```bash
+sudo dnf install hunspell-en-US
+```
 
 **For Arch-based distributions:**
 ```bash
@@ -81,7 +97,7 @@ Optional for word suggestions:
 sudo pacman -S hunspell-en_us
 ```
 
-### 2. Download latest master
+### 2. Clone the repository
 
 ```bash
 git clone https://github.com/archisman-panigrahi/vboard.git
