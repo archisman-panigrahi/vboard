@@ -10,6 +10,9 @@ name: Build Debian Package
       - published
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-deb:
     runs-on: ubuntu-latest
@@ -47,3 +50,10 @@ jobs:
             artifacts/*.buildinfo
             artifacts/*.changes
           if-no-files-found: error
+
+      - name: Upload Debian package to GitHub release
+        if: github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" artifacts/*.deb artifacts/*.buildinfo artifacts/*.changes --clobber
