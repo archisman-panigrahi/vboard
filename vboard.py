@@ -2,6 +2,7 @@
 
 import configparser
 import os
+import subprocess
 
 import gi
 
@@ -21,6 +22,38 @@ def get_desktop_environment():
 
 
 DESKTOP_ENV = get_desktop_environment()
+
+
+def is_kde_environment():
+    session_hint = " ".join(
+        filter(
+            None,
+            [
+                DESKTOP_ENV,
+                os.environ.get("DESKTOP_SESSION", ""),
+                os.environ.get("KDE_FULL_SESSION", ""),
+            ],
+        )
+    ).upper()
+    return "KDE" in session_hint or "PLASMA" in session_hint
+
+
+def install_kwin_rule_if_needed():
+    if not is_kde_environment():
+        return
+
+    for script_path in (
+        "/usr/share/vboard/scripts/install-kwin-rule.sh",
+        "./scripts/install-kwin-rule.sh",
+    ):
+        if os.path.isfile(script_path):
+            try:
+                subprocess.run(["bash", script_path], check=False)
+            except OSError as exc:
+                print(f"Warning: Could not run {script_path}: {exc}")
+            return
+
+    print("Warning: Could not find a KWin rule installer script.")
 
 APPINDICATOR_AVAILABLE = False
 AppIndicator3 = None
@@ -788,6 +821,7 @@ class VirtualKeyboard(Gtk.Window):
 
 
 if __name__ == "__main__":
+    install_kwin_rule_if_needed()
     GLib.set_prgname(APP_WM_CLASS)
     GLib.set_application_name(APP_DISPLAY_NAME)
     win = VirtualKeyboard()
