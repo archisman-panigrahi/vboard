@@ -37,7 +37,7 @@ sudo apt install python3-gi gir1.2-gtk-3.0 python3-uinput steam-devices
 sudo dnf install python3-gobject gtk3 python3-uinput steam-devices
 ```
 
-**For arch-based distributions:**  
+**For Arch-based distributions:**  
 ```bash
 yay -Syu python-gobject gtk3 python-uinput steam-devices
 ```
