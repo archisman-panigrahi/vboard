@@ -38,7 +38,7 @@ sudo apt install ./vboard_*.deb
 
 The package post-install step sets up `uinput` and installs the `udev` rule needed for desktop-session access to `/dev/uinput`.
 
-Log out and back in, or reboot, after installation.
+**Log out and back in, or reboot, after installation.**
 
 ### PPA for Ubuntu
 
@@ -63,7 +63,7 @@ cd vboard
 sudo bash setup-ubuntu-debian.sh
 ```
 
-This script will handle all setup steps including dependency installation, uinput configuration, and system-wide installation. A system restart is recommended after installation.
+This script will handle all setup steps including dependency installation, uinput configuration, and system-wide installation. **A system restart is recommended after installation**.
 
 ### Manual installation on other distros
 
@@ -117,8 +117,6 @@ For system installs, this also installs a `udev` rule so your logged-in desktop 
 
 ### 4. Build and install with Meson
 
-On KDE/Plasma, install hooks automatically create the appropriate KWin window rule for vboard using its Wayland application ID instead of the window title.
-
 **Global install:**
 
 ```bash
@@ -135,6 +133,9 @@ meson compile -C builddir-user
 meson install -C builddir-user
 ```
 
+**Restart for changes to take effect.**
+On KDE/Plasma, install hooks automatically create the appropriate KWin window rule for vboard using its Wayland application ID instead of the window title.
+
 ### 5. Uninstall
 
 ```bash
@@ -146,7 +147,7 @@ For system installs:
 sudo meson compile -C builddir uninstall-local
 ```
 
-### KDE Plasma: enable vboard as the on-screen keyboard
+### KDE Plasma: enable vboard as the default on-screen keyboard
 
 After installation, open **System Settings**, search for **Virtual Keyboard**, and select **Vboard**.
 
