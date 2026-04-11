@@ -131,7 +131,85 @@ SHIFTED_KEY_MAP = {
 }
 
 SUPPORTED_WORD_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'-")
+SUPPORTED_COMMAND_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._+-")
 SUGGESTION_LIMIT = 5
+TOUCH_TYPING_NEARBY_COST = 0.35
+TOUCH_TYPING_MISMATCH_COST = 1.1
+TOUCH_TYPING_GAP_COST = 0.8
+TOUCH_TYPING_MAX_LENGTH_DELTA = 4
+TOUCH_TYPING_DWELL_REFERENCE_MS = 160.0
+TOUCH_TYPING_DWELL_ANCHOR_MIN_MS = 110.0
+
+
+def get_key_width(key_label):
+    if key_label == "Space":
+        return 12
+    if key_label == "CapsLock":
+        return 3
+    if key_label == "Shift_R":
+        return 2
+    if key_label == "Shift_L":
+        return 4
+    if key_label == "Backspace":
+        return 5
+    if key_label == "`":
+        return 1
+    if key_label == "\\":
+        return 4
+    if key_label == "Enter":
+        return 5
+    return 2
+
+
+def is_touch_typing_key(key_label):
+    return len(key_label) == 1 and key_label.isalpha()
+
+
+def compress_letter_sequence(text):
+    compressed = []
+    previous = None
+    for char in text:
+        if char == previous:
+            continue
+        compressed.append(char)
+        previous = char
+    return "".join(compressed)
+
+
+def get_monotonic_time_ms():
+    return GLib.get_monotonic_time() / 1000.0
+
+
+def build_touch_typing_neighbors():
+    key_spans = {}
+
+    for row_index, keys in enumerate(KEY_ROWS):
+        column = 0
+        for key_label in keys:
+            width = get_key_width(key_label)
+            if is_touch_typing_key(key_label):
+                key_spans[key_label.lower()] = (row_index, column, column + width)
+            column += width
+
+    neighbors = {}
+    for key_label, (row_index, start, end) in key_spans.items():
+        nearby = {key_label}
+        for other_key, (other_row, other_start, other_end) in key_spans.items():
+            if abs(row_index - other_row) > 1:
+                continue
+
+            overlap_start = max(start, other_start)
+            overlap_end = min(end, other_end)
+            gap = 0 if overlap_start <= overlap_end else overlap_start - overlap_end
+            if gap <= 2:
+                nearby.add(other_key)
+
+        neighbors[key_label] = frozenset(nearby)
+
+    return neighbors
+
+
+TOUCH_TYPING_NEIGHBORS = build_touch_typing_neighbors()
 
 
 class InputBackend:
@@ -400,6 +478,251 @@ class HunspellSuggestionEngine:
             return None
         return normalized
 
+
+class LinuxCommandSuggestionEngine:
+    def __init__(self):
+        self.commands = []
+        self.loaded = False
+
+    def ensure_loaded(self):
+        if self.loaded:
+            return
+
+        self.loaded = True
+        commands = set()
+        for directory in os.environ.get("PATH", "").split(os.pathsep):
+            directory = directory.strip()
+            if not directory or not os.path.isdir(directory):
+                continue
+
+            try:
+                entries = os.listdir(directory)
+            except OSError:
+                continue
+
+            for entry in entries:
+                normalized = self.normalize_command(entry)
+                if normalized is None:
+                    continue
+
+                entry_path = os.path.join(directory, entry)
+                try:
+                    if not os.access(entry_path, os.X_OK):
+                        continue
+                except OSError:
+                    continue
+
+                commands.add(entry)
+
+        self.commands = sorted(commands, key=str.lower)
+
+    def normalize_command(self, command):
+        if not command or not command.isascii():
+            return None
+
+        normalized = command.strip().lower()
+        if len(normalized) < 2:
+            return None
+        if any(char not in SUPPORTED_COMMAND_CHARS for char in normalized):
+            return None
+        if not any(char.isalpha() for char in normalized):
+            return None
+        return normalized
+
+
+class TouchTypingSuggestionEngine:
+    def __init__(self, hunspell_engine, command_engine, key_neighbors):
+        self.hunspell_engine = hunspell_engine
+        self.command_engine = command_engine
+        self.key_neighbors = key_neighbors
+        self.entries = []
+        self.cache_signature = None
+
+    def ensure_loaded(self):
+        self.hunspell_engine.ensure_loaded()
+        self.command_engine.ensure_loaded()
+
+        signature = (
+            self.hunspell_engine.dictionary_path,
+            len(self.hunspell_engine.words),
+            tuple(self.command_engine.commands),
+        )
+        if self.cache_signature == signature:
+            return
+
+        self.cache_signature = signature
+        self.entries = []
+        seen = set()
+
+        for word in self.hunspell_engine.words:
+            self.add_entry(word, "word", seen)
+
+        for command in self.command_engine.commands:
+            self.add_entry(command, "command", seen)
+
+    def add_entry(self, display_text, source, seen):
+        dedupe_key = (display_text.lower(), source)
+        if dedupe_key in seen:
+            return
+
+        normalized = display_text.strip().lower()
+        letters_only = "".join(char for char in normalized if char.isalpha())
+        skeleton = compress_letter_sequence(letters_only)
+        if len(skeleton) < 2:
+            return
+
+        seen.add(dedupe_key)
+        self.entries.append(
+            {
+                "display": display_text,
+                "skeleton": skeleton,
+                "source": source,
+            }
+        )
+
+    def normalize_key_sequence(self, key_sequence, dwell_times=None):
+        normalized = []
+        normalized_dwell_times = []
+        previous = None
+        for index, key_label in enumerate(key_sequence):
+            if not is_touch_typing_key(key_label):
+                continue
+            key_label = key_label.lower()
+            if key_label == previous:
+                if normalized_dwell_times and dwell_times is not None:
+                    normalized_dwell_times[-1] += dwell_times[index]
+                continue
+            normalized.append(key_label)
+            if dwell_times is not None:
+                normalized_dwell_times.append(dwell_times[index])
+            previous = key_label
+        if dwell_times is None:
+            return normalized, []
+        return normalized, normalized_dwell_times
+
+    def calculate_alignment_score(self, exact_sequence, nearby_sequence, dwell_times, candidate_skeleton):
+        row = [index * TOUCH_TYPING_GAP_COST for index in range(len(candidate_skeleton) + 1)]
+
+        for gesture_index, exact_char in enumerate(exact_sequence, start=1):
+            dwell_weight = 1.0 + min(dwell_times[gesture_index - 1] / TOUCH_TYPING_DWELL_REFERENCE_MS, 2.5)
+            current_row = [gesture_index * TOUCH_TYPING_GAP_COST]
+            nearby_chars = nearby_sequence[gesture_index - 1]
+
+            for candidate_index, candidate_char in enumerate(candidate_skeleton, start=1):
+                if candidate_char == exact_char:
+                    substitution_cost = 0.0
+                elif candidate_char in nearby_chars:
+                    substitution_cost = TOUCH_TYPING_NEARBY_COST
+                else:
+                    substitution_cost = TOUCH_TYPING_MISMATCH_COST
+
+                current_row.append(
+                    min(
+                        row[candidate_index] + (TOUCH_TYPING_GAP_COST * dwell_weight),
+                        current_row[candidate_index - 1] + (TOUCH_TYPING_GAP_COST * dwell_weight),
+                        row[candidate_index - 1] + (substitution_cost * dwell_weight),
+                    )
+                )
+
+            row = current_row
+
+        return row[-1]
+
+    def anchors_match(self, anchor_nearby_sets, candidate_skeleton):
+        candidate_index = 0
+        for nearby_chars in anchor_nearby_sets:
+            while candidate_index < len(candidate_skeleton) and candidate_skeleton[candidate_index] not in nearby_chars:
+                candidate_index += 1
+            if candidate_index >= len(candidate_skeleton):
+                return False
+            candidate_index += 1
+        return True
+
+    def get_anchor_indices(self, normalized_dwell_times):
+        if not normalized_dwell_times:
+            return []
+
+        max_dwell = max(normalized_dwell_times)
+        threshold = max(
+            TOUCH_TYPING_DWELL_ANCHOR_MIN_MS,
+            min(max_dwell * 0.6, TOUCH_TYPING_DWELL_ANCHOR_MIN_MS * 1.8),
+        )
+        anchor_indices = [
+            index for index, dwell_time in enumerate(normalized_dwell_times) if dwell_time >= threshold
+        ]
+
+        if anchor_indices:
+            return anchor_indices
+
+        best_index = max(range(len(normalized_dwell_times)), key=normalized_dwell_times.__getitem__)
+        if normalized_dwell_times[best_index] >= TOUCH_TYPING_DWELL_ANCHOR_MIN_MS * 0.75:
+            return [best_index]
+
+        return []
+
+    def get_suggestions(self, key_sequence, dwell_times=None, limit=SUGGESTION_LIMIT):
+        normalized_keys, normalized_dwell_times = self.normalize_key_sequence(key_sequence, dwell_times)
+        if len(normalized_keys) < 2:
+            return []
+
+        if not normalized_dwell_times:
+            normalized_dwell_times = [0.0] * len(normalized_keys)
+
+        self.ensure_loaded()
+        nearby_sequence = [self.key_neighbors.get(key, frozenset({key})) for key in normalized_keys]
+        anchor_indices = self.get_anchor_indices(normalized_dwell_times)
+        anchor_nearby_sets = [nearby_sequence[index] for index in anchor_indices]
+        max_score = max(1.8, len(normalized_keys) * 0.8)
+        scored_candidates = []
+
+        for entry in self.entries:
+            skeleton = entry["skeleton"]
+            if abs(len(skeleton) - len(normalized_keys)) > TOUCH_TYPING_MAX_LENGTH_DELTA:
+                continue
+            if skeleton[0] not in nearby_sequence[0]:
+                continue
+
+            score = self.calculate_alignment_score(
+                normalized_keys,
+                nearby_sequence,
+                normalized_dwell_times,
+                skeleton,
+            )
+
+            if anchor_nearby_sets:
+                if self.anchors_match(anchor_nearby_sets, skeleton):
+                    score -= 0.25 * len(anchor_nearby_sets)
+                else:
+                    score += 0.9 + (0.3 * len(anchor_nearby_sets))
+
+            if skeleton[-1] not in nearby_sequence[-1]:
+                score += 0.25
+
+            score += 0.02 * abs(len(skeleton) - len(normalized_keys))
+            score += 0.01 * len(entry["display"])
+            if entry["source"] == "command":
+                score += 0.03
+
+            if score > max_score:
+                continue
+
+            scored_candidates.append((score, len(entry["display"]), entry["display"].lower(), entry["display"]))
+
+        scored_candidates.sort()
+
+        suggestions = []
+        seen = set()
+        for _, _, _, display_text in scored_candidates:
+            lower_display = display_text.lower()
+            if lower_display in seen:
+                continue
+            seen.add(lower_display)
+            suggestions.append(display_text)
+            if len(suggestions) >= limit:
+                break
+
+        return suggestions
+
 class VirtualKeyboard(Gtk.Window):
     def __init__(self, application=None):
         super().__init__(title=APP_DISPLAY_NAME, name="toplevel")
@@ -442,6 +765,7 @@ class VirtualKeyboard(Gtk.Window):
         self.bg_color = "0, 0, 0"  # background color
         self.opacity="0.90"
         self.text_color="white"
+        self.touch_typing_enabled = False
         self.read_settings()
 
         self.modifiers = {mod_key: False for mod_key in MODIFIER_KEYS}
@@ -480,14 +804,35 @@ class VirtualKeyboard(Gtk.Window):
         self.buttons=[]
         self.modifier_buttons={}
         self.row_buttons=[]
+        self.touch_typing_buttons = []
+        self.touch_typing_gesture_active = False
+        self.touch_typing_gesture_keys = []
+        self.touch_typing_gesture_dwell_times = []
+        self.touch_typing_last_key = None
+        self.touch_typing_last_timestamp_ms = None
+        self.touch_typing_suggestions = []
+        self.touch_typing_committed_text = None
         self.current_word = ""
         self.suggestion_engine = HunspellSuggestionEngine()
+        self.command_suggestion_engine = LinuxCommandSuggestionEngine()
+        self.touch_typing_engine = TouchTypingSuggestionEngine(
+            self.suggestion_engine,
+            self.command_suggestion_engine,
+            TOUCH_TYPING_NEIGHBORS,
+        )
         self.suggestion_buttons = []
         self.color_combobox = Gtk.ComboBoxText()
         # Set the header bar as the titlebar of the window
         self.set_titlebar(self.header)
         self.set_name("vboard-main")
         self.set_default_icon_name(self.get_app_icon_name())
+        self.add_events(
+            Gdk.EventMask.BUTTON_RELEASE_MASK
+            | Gdk.EventMask.POINTER_MOTION_MASK
+            | Gdk.EventMask.TOUCH_MASK
+        )
+        self.connect("button-release-event", self.on_window_button_release)
+        self.connect("motion-notify-event", self.on_window_motion)
 
         self.create_settings()
 
@@ -551,22 +896,7 @@ class VirtualKeyboard(Gtk.Window):
                 AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
             )
             self.tray_icon.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
-
-            self.tray_menu = Gtk.Menu()
-            self.tray_toggle_item = Gtk.MenuItem(label="Hide")
-            self.tray_toggle_item.connect("activate", self.on_tray_toggle)
-            self.tray_menu.append(self.tray_toggle_item)
-
-            separator1 = Gtk.SeparatorMenuItem()
-            self.tray_menu.append(separator1)
-
-            about_item = Gtk.MenuItem(label="About")
-            about_item.connect("activate", self.on_tray_about)
-            self.tray_menu.append(about_item)
-
-            quit_item = Gtk.MenuItem(label="Quit")
-            quit_item.connect("activate", self.on_tray_quit)
-            self.tray_menu.append(quit_item)
+            self.build_tray_menu()
             self.tray_menu.show_all()
             self.tray_icon.set_menu(self.tray_menu)
         else:
@@ -577,27 +907,35 @@ class VirtualKeyboard(Gtk.Window):
                 self.tray_icon.set_tooltip_text("Vboard - Virtual Keyboard")
                 self.tray_icon.connect("activate", self.on_statusicon_activate)
                 self.tray_icon.connect("popup-menu", self.on_statusicon_popup_menu)
-
-                self.tray_menu = Gtk.Menu()
-                self.tray_toggle_item = Gtk.MenuItem(label="Hide")
-                self.tray_toggle_item.connect("activate", self.on_tray_toggle)
-                self.tray_menu.append(self.tray_toggle_item)
-
-                separator1 = Gtk.SeparatorMenuItem()
-                self.tray_menu.append(separator1)
-
-                about_item = Gtk.MenuItem(label="About")
-                about_item.connect("activate", self.on_tray_about)
-                self.tray_menu.append(about_item)
-
-                quit_item = Gtk.MenuItem(label="Quit")
-                quit_item.connect("activate", self.on_tray_quit)
-                self.tray_menu.append(quit_item)
+                self.build_tray_menu()
                 self.tray_menu.show_all()
                 print("Using Gtk.StatusIcon for system tray.")
             except Exception as e:
                 self.tray_icon = None
                 print(f"Warning: Could not create tray icon ({e}). Tray disabled.")
+
+    def build_tray_menu(self):
+        self.tray_menu = Gtk.Menu()
+
+        self.tray_toggle_item = Gtk.MenuItem(label="Hide")
+        self.tray_toggle_item.connect("activate", self.on_tray_toggle)
+        self.tray_menu.append(self.tray_toggle_item)
+
+        self.touch_typing_menu_item = Gtk.CheckMenuItem(label="Touch typing")
+        self.touch_typing_menu_item.set_active(self.touch_typing_enabled)
+        self.touch_typing_menu_item.connect("toggled", self.on_touch_typing_toggled)
+        self.tray_menu.append(self.touch_typing_menu_item)
+
+        separator1 = Gtk.SeparatorMenuItem()
+        self.tray_menu.append(separator1)
+
+        about_item = Gtk.MenuItem(label="About")
+        about_item.connect("activate", self.on_tray_about)
+        self.tray_menu.append(about_item)
+
+        quit_item = Gtk.MenuItem(label="Quit")
+        quit_item.connect("activate", self.on_tray_quit)
+        self.tray_menu.append(quit_item)
 
     def update_tray_menu(self):
         if self.get_visible():
@@ -625,6 +963,14 @@ class VirtualKeyboard(Gtk.Window):
 
     def on_tray_toggle(self, widget):
         self.on_tray_activate(None)
+
+    def on_touch_typing_toggled(self, widget):
+        self.touch_typing_enabled = widget.get_active()
+        if not self.touch_typing_enabled:
+            self.reset_touch_typing_gesture()
+            self.clear_touch_typing_candidates()
+            self.update_suggestions()
+        self.save_settings()
 
     def on_tray_about(self, widget):
         """Show the About dialog."""
@@ -702,6 +1048,8 @@ class VirtualKeyboard(Gtk.Window):
 
     def preload_suggestions(self):
         self.suggestion_engine.ensure_loaded()
+        self.command_suggestion_engine.ensure_loaded()
+        self.touch_typing_engine.ensure_loaded()
         return False
 
     def on_resize(self, widget, event):
@@ -925,19 +1273,21 @@ class VirtualKeyboard(Gtk.Window):
                 button = Gtk.Button(label=key_label)
             button.connect("pressed", self.on_button_press, key_label)
             button.connect("released", self.on_button_release)
-            button.connect("leave-notify-event", self.on_button_release)
+            button.connect("leave-notify-event", self.on_button_leave)
+            button.connect("enter-notify-event", self.on_button_enter, key_label)
+            button.connect("motion-notify-event", self.on_button_motion)
+            button.add_events(
+                Gdk.EventMask.ENTER_NOTIFY_MASK
+                | Gdk.EventMask.LEAVE_NOTIFY_MASK
+                | Gdk.EventMask.POINTER_MOTION_MASK
+                | Gdk.EventMask.TOUCH_MASK
+            )
             self.row_buttons.append(button)
             if key_label in self.modifiers:
                 self.modifier_buttons[key_label] = button
-            if key_label == "Space": width=12
-            elif key_label == "CapsLock": width=3
-            elif key_label == "Shift_R" : width=2
-            elif key_label == "Shift_L" : width=4
-            elif key_label == "Backspace": width=5
-            elif key_label == "`": width=1
-            elif key_label == "\\" : width=4
-            elif key_label == "Enter": width=5
-            else: width=2
+            if is_touch_typing_key(key_label):
+                self.touch_typing_buttons.append((button, key_label))
+            width = get_key_width(key_label)
 
             grid.attach(button, col, row_index, width, 1)
             col += width  # Skip 4 columns for the space button
@@ -979,6 +1329,10 @@ class VirtualKeyboard(Gtk.Window):
                 self.update_label(False)
             return  # modifiers don’t repeat
 
+        if self.touch_typing_enabled and is_touch_typing_key(key_event):
+            self.begin_touch_typing_gesture(key_event)
+            return
+
         # Fire key once immediately
         self.emit_key(key_event)
 
@@ -986,13 +1340,44 @@ class VirtualKeyboard(Gtk.Window):
         self.delay_source = GLib.timeout_add(400, self.start_repeat, key_event)
 
     def on_button_release(self, widget, *args):
-        # Cancel both delay and repeat when released
-        if hasattr(self, "delay_source"):
-            GLib.source_remove(self.delay_source)
-            del self.delay_source
-        if hasattr(self, "repeat_source"):
-            GLib.source_remove(self.repeat_source)
-            del self.repeat_source
+        if self.touch_typing_gesture_active:
+            self.finish_touch_typing_gesture()
+            return False
+
+        self.cancel_repeat_sources()
+        return False
+
+    def on_button_leave(self, widget, *args):
+        if self.touch_typing_gesture_active:
+            return False
+
+        self.cancel_repeat_sources()
+        return False
+
+    def on_button_enter(self, widget, event, key_event):
+        if self.touch_typing_gesture_active:
+            self.flush_touch_typing_dwell()
+            self.add_touch_typing_key(key_event)
+        return False
+
+    def on_button_motion(self, widget, event):
+        if not self.touch_typing_gesture_active:
+            return False
+
+        translated = widget.translate_coordinates(self, int(event.x), int(event.y))
+        if translated is not None:
+            self.update_touch_typing_point(*translated)
+        return False
+
+    def on_window_button_release(self, widget, event):
+        if self.touch_typing_gesture_active:
+            self.finish_touch_typing_gesture()
+        return False
+
+    def on_window_motion(self, widget, event):
+        if self.touch_typing_gesture_active:
+            self.update_touch_typing_point(int(event.x), int(event.y))
+        return False
 
     def start_repeat(self, key_event):
         # After the delay, start the repeat loop
@@ -1003,13 +1388,128 @@ class VirtualKeyboard(Gtk.Window):
         self.emit_key(key_event)
         return True  # keep repeating
 
+    def cancel_repeat_sources(self):
+        if hasattr(self, "delay_source"):
+            GLib.source_remove(self.delay_source)
+            del self.delay_source
+        if hasattr(self, "repeat_source"):
+            GLib.source_remove(self.repeat_source)
+            del self.repeat_source
+
     def emit_key(self, key_event):
+        if key_event not in self.modifiers:
+            self.clear_touch_typing_candidates()
         self.track_current_word(key_event)
         self.backend.emit_key(key_event, self.modifiers)
         self.update_label(False)
         for mod_key, active in self.modifiers.items():
             if active:
                 self.update_modifier(mod_key, False)
+
+    def begin_touch_typing_gesture(self, key_event):
+        self.cancel_repeat_sources()
+        self.reset_touch_typing_gesture()
+        self.touch_typing_gesture_active = True
+        self.touch_typing_last_timestamp_ms = get_monotonic_time_ms()
+        self.add_touch_typing_key(key_event)
+
+    def add_touch_typing_key(self, key_event):
+        if not self.touch_typing_gesture_active or not is_touch_typing_key(key_event):
+            return
+
+        normalized_key = key_event.lower()
+        if normalized_key == self.touch_typing_last_key:
+            return
+
+        self.touch_typing_gesture_keys.append(normalized_key)
+        self.touch_typing_gesture_dwell_times.append(0.0)
+        self.touch_typing_last_key = normalized_key
+
+    def update_touch_typing_point(self, x, y):
+        self.flush_touch_typing_dwell()
+        key_label = self.find_touch_typing_key_at(x, y)
+        if key_label is not None:
+            self.add_touch_typing_key(key_label)
+
+    def find_touch_typing_key_at(self, x, y):
+        for button, key_label in self.touch_typing_buttons:
+            translated = button.translate_coordinates(self, 0, 0)
+            if translated is None:
+                continue
+
+            button_x, button_y = translated
+            allocation = button.get_allocation()
+            if (
+                button_x <= x < button_x + allocation.width
+                and button_y <= y < button_y + allocation.height
+            ):
+                return key_label
+
+        return None
+
+    def finish_touch_typing_gesture(self):
+        gesture_keys = list(self.touch_typing_gesture_keys)
+        self.flush_touch_typing_dwell()
+        gesture_dwell_times = list(self.touch_typing_gesture_dwell_times)
+        self.reset_touch_typing_gesture()
+
+        if len(gesture_keys) <= 1:
+            if gesture_keys:
+                self.emit_key(gesture_keys[0].upper())
+            return
+
+        suggestions = self.touch_typing_engine.get_suggestions(
+            gesture_keys,
+            gesture_dwell_times,
+            SUGGESTION_LIMIT,
+        )
+        if suggestions:
+            selected_text = suggestions[0]
+        else:
+            selected_text = "".join(gesture_keys)
+            suggestions = [selected_text]
+
+        self.insert_text_direct(selected_text)
+        self.current_word = selected_text
+        self.touch_typing_suggestions = suggestions
+        self.touch_typing_committed_text = selected_text
+        self.update_suggestions()
+
+    def reset_touch_typing_gesture(self):
+        self.touch_typing_gesture_active = False
+        self.touch_typing_gesture_keys = []
+        self.touch_typing_gesture_dwell_times = []
+        self.touch_typing_last_key = None
+        self.touch_typing_last_timestamp_ms = None
+
+    def flush_touch_typing_dwell(self):
+        if not self.touch_typing_gesture_active:
+            return
+        if not self.touch_typing_gesture_dwell_times:
+            return
+        if self.touch_typing_last_timestamp_ms is None:
+            self.touch_typing_last_timestamp_ms = get_monotonic_time_ms()
+            return
+
+        current_time_ms = get_monotonic_time_ms()
+        elapsed_ms = max(0.0, current_time_ms - self.touch_typing_last_timestamp_ms)
+        self.touch_typing_gesture_dwell_times[-1] += elapsed_ms
+        self.touch_typing_last_timestamp_ms = current_time_ms
+
+    def clear_touch_typing_candidates(self):
+        self.touch_typing_suggestions = []
+        self.touch_typing_committed_text = None
+
+    def insert_text_direct(self, text):
+        for char in text:
+            key_event, modifiers = self.character_to_key_event(char)
+            if key_event is None:
+                continue
+            self.backend.emit_key(key_event, modifiers)
+
+    def delete_text_direct(self, text):
+        for _ in text:
+            self.backend.emit_key("Backspace", {modifier: False for modifier in MODIFIER_KEYS})
 
     def track_current_word(self, key_event):
         if self.has_active_command_modifier():
@@ -1053,7 +1553,10 @@ class VirtualKeyboard(Gtk.Window):
         return None
 
     def update_suggestions(self):
-        suggestions = self.suggestion_engine.get_suggestions(self.current_word, SUGGESTION_LIMIT)
+        if self.touch_typing_suggestions:
+            suggestions = self.touch_typing_suggestions[:SUGGESTION_LIMIT]
+        else:
+            suggestions = self.suggestion_engine.get_suggestions(self.current_word, SUGGESTION_LIMIT)
 
         for index, button in enumerate(self.suggestion_buttons):
             style_context = button.get_style_context()
@@ -1078,7 +1581,24 @@ class VirtualKeyboard(Gtk.Window):
 
     def on_suggestion_clicked(self, widget):
         suggestion = widget.get_label()
-        if not suggestion or not self.current_word:
+        if not suggestion:
+            return
+
+        if self.touch_typing_committed_text and suggestion in self.touch_typing_suggestions:
+            if suggestion == self.touch_typing_committed_text:
+                return
+
+            self.delete_text_direct(self.touch_typing_committed_text)
+            self.insert_text_direct(suggestion)
+            self.current_word = suggestion
+            self.touch_typing_committed_text = suggestion
+            self.touch_typing_suggestions = [suggestion] + [
+                candidate for candidate in self.touch_typing_suggestions if candidate != suggestion
+            ]
+            self.update_suggestions()
+            return
+
+        if not self.current_word:
             return
 
         completion = suggestion[len(self.current_word):]
@@ -1130,6 +1650,9 @@ class VirtualKeyboard(Gtk.Window):
                 self.bg_color = self.config.get("DEFAULT", "bg_color" )
                 self.opacity = self.config.get("DEFAULT", "opacity" )
                 self.text_color = self.config.get("DEFAULT", "text_color", fallback="white" )
+                self.touch_typing_enabled = self.config.getboolean(
+                    "DEFAULT", "touch_typing", fallback=False
+                )
                 self.width=self.config.getint("DEFAULT", "width" , fallback=0)
                 self.height=self.config.getint("DEFAULT", "height", fallback=0)
                 pos_x_str = self.config.get("DEFAULT", "pos_x", fallback="0")
@@ -1154,6 +1677,7 @@ class VirtualKeyboard(Gtk.Window):
             "bg_color": self.bg_color,
             "opacity": self.opacity,
             "text_color": self.text_color,
+            "touch_typing": str(self.touch_typing_enabled),
             "width": self.width,
             "height": self.height,
             "pos_x": str(self.pos_x),

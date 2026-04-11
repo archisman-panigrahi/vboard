@@ -13,6 +13,7 @@ vboard is a lightweight, customizable virtual keyboard designed for Linux system
 - Kiosk applications
 
 The keyboard supports customizable colors, opacity settings, and can be easily modified to support different layouts.
+Touch typing is disabled by default and can be enabled from the tray icon menu.
 
 ## Features
 - **Customizable appearance**: Change background color, text color, and opacity
@@ -20,6 +21,7 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 - **Modifier key support**: Use Shift, Ctrl, Alt and Super keys
 - **Hold for repetitive clicks**: Keep holding the mouse button to trigger repeated clicks
 - **Word suggestions**: Offers completions from an installed Hunspell dictionary while you type with vboard
+- **Optional touch typing**: Swipe across letter keys with a mouse drag or touchscreen gesture to insert the closest Hunspell word or Linux command match
 - **Compact interface**: Headerbar with minimal controls to save screen space
 - **Always-on-top**: Stays above other windows for easy access
 - **Tray icon support**: Keeps vboard running in the background and you can quickly reopen it when needed
@@ -126,6 +128,13 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 - Arrow keys
 - Modifier keys (Shift, Ctrl, Alt, Super)
 - Header-bar suggestions that appear while typing words through vboard when a system Hunspell dictionary is available
+- A tray menu toggle for `Touch typing`, disabled by default
+
+When touch typing is enabled, press and drag across letter keys with a mouse or touchscreen. Vboard gathers the traversed letters, expands each point to nearby keyboard letters, and ranks likely matches from:
+- the installed Hunspell dictionary
+- executable commands found on your `PATH`
+
+The best match is inserted on release, and alternate matches stay in the suggestion bar for quick replacement.
 
 ### Interface Controls
 - ☰ (menu) - Toggle visibility of other interface controls
@@ -138,6 +147,7 @@ vboard saves its settings to `~/.config/vboard/settings.conf`. This configuratio
 - Background color
 - Opacity level
 - Text color
+- Touch typing enabled/disabled state
 
 You can manually edit this file or use the built-in interface controls to customize the appearance.
 
