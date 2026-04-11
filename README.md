@@ -96,7 +96,7 @@ Run once with sudo before Meson install:
 sudo bash scripts/setup-uinput.sh
 ```
 
-If permissions still do not apply, log out/log in or restart your computer.
+For system installs, this also installs a `udev` rule so your logged-in desktop user can access `/dev/uinput`. If permissions still do not apply, log out/log in or restart your computer.
 
 ### 4. Build and install with Meson
 
@@ -162,6 +162,39 @@ The keyboard layout is defined in the `rows` list in the source code. To modify 
 
 ## Troubleshooting
 
+### Input does not work
+
+If vboard opens but pressing keys does not type anything, the `uinput` backend usually could not open `/dev/uinput`.
+
+1. Check whether `uinput` exists and inspect its permissions:
+
+```bash
+ls -l /dev/uinput
+```
+
+2. Run the setup helper again as root:
+
+```bash
+sudo bash scripts/setup-uinput.sh
+```
+
+3. Reload `udev` rules and retrigger the device:
+
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput
+```
+
+4. Log out and back in, or reboot, so your desktop session picks up the updated device permissions.
+
+5. If it still does not work, add your user to the `input` group and log out/in again:
+
+```bash
+sudo usermod -a -G input $USER
+```
+
+You can also start vboard from a terminal and look for errors such as `Could not initialize uinput backend ([Errno 13])`.
+
 ### Error: no such device
 Make sure `uinput` module is loaded:
 ```bash
@@ -179,7 +212,12 @@ Run uinput setup script:
 sudo bash scripts/setup-uinput.sh
 ```
 
-If needed, log out/log in or reboot.
+This installs the packaged `udev` rule at `/etc/udev/rules.d/70-vboard-uinput.rules` for system installs. If needed, reload `udev`, then log out/log in or reboot:
+
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput
+```
 
 ## Contributing
 Contributions are welcome.

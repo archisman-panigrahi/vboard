@@ -17,6 +17,7 @@ This directory contains helper scripts used by vboard installation and integrati
   - Must run as root.
   - Loads `uinput` module if needed.
   - For system scope, writes `/etc/modules-load.d/uinput.conf` for boot persistence.
+  - For system scope, installs `/etc/udev/rules.d/70-vboard-uinput.rules` so desktop users can access `/dev/uinput`.
   - Verifies `/dev/uinput` accessibility.
 
 - meson-post-install.sh

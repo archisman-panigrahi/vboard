@@ -25,7 +25,7 @@ from .gtk import (
     GLib,
     Gtk,
 )
-from .input_backends import UInputBackend
+from .input_backends import NullInputBackend, UInputBackend
 from .suggestions import HunspellSuggestionEngine
 
 
@@ -96,6 +96,13 @@ class VirtualKeyboard(Gtk.Window):
         self.set_default_icon_name(self.get_app_icon_name())
 
         self.create_settings()
+        self.create_tray_icon()
+        try:
+            self.backend = UInputBackend()
+        except Exception as exc:
+            self.backend = NullInputBackend(
+                f"Could not initialize uinput backend ({exc}); key output is disabled"
+            )
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.add(content)
@@ -122,8 +129,6 @@ class VirtualKeyboard(Gtk.Window):
         grid.set_name("grid")
         content.pack_start(grid, True, True, 0)
         self.apply_css()
-        self.backend = UInputBackend()
-        self.create_tray_icon()
         GLib.idle_add(self.preload_suggestions)
 
         for row_index, keys in enumerate(KEY_ROWS):
