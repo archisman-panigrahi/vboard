@@ -257,6 +257,7 @@ class VirtualKeyboard(Gtk.Window):
         self.color_combobox = Gtk.ComboBoxText()
         # Set the header bar as the titlebar of the window
         self.set_titlebar(self.header)
+        self.set_name("vboard-main")
         self.set_default_icon_name(self.get_app_icon_name())
 
         self.create_settings()
@@ -528,14 +529,18 @@ class VirtualKeyboard(Gtk.Window):
 
 
         css = f"""
-        headerbar {{
+        #vboard-main {{
+            background-color: rgba({self.bg_color}, {self.opacity});
+        }}
+
+        #vboard-main headerbar {{
             background-color: rgba({self.bg_color}, {self.opacity});
             border: 0px;
             box-shadow: none;
 
         }}
 
-        headerbar button{{
+        #vboard-main headerbar button{{
             min-width: 40px;
             padding: 0px;
             border: 0px;
@@ -546,35 +551,28 @@ class VirtualKeyboard(Gtk.Window):
 
         }}
 
-        headerbar .titlebutton {{
+        #vboard-main headerbar .titlebutton {{
             min-width: 50px;  /* Set custom min-width for the close button */
             min-height: 40px
         }}
 
-        headerbar button label{{
+        #vboard-main headerbar button label{{
         color: {self.text_color};
 
         }}
 
-        #headbar-button, #combobox button.combo {{
+        #vboard-main #headbar-button,
+        #vboard-main #combobox button.combo {{
             background-image: none;
         }}
 
-        #toplevel {{
-            background-color: rgba({self.bg_color}, {self.opacity});
-
-
-
-
-        }}
-
-        #grid button label{{
+        #vboard-main #grid button label{{
             color: {self.text_color};
 
 
         }}
 
-        #grid button {{
+        #vboard-main #grid button {{
                     min-width: 10px;
                     border: 1px solid white;
                     background-image: none;
@@ -583,42 +581,42 @@ class VirtualKeyboard(Gtk.Window):
 
                 }}
 
-        button {{
+        #vboard-main button {{
             background-color: transparent;
             color:{self.text_color};
 
         }}
 
-       #grid button:hover {{
+       #vboard-main #grid button:hover {{
             border: 1px solid #00CACB;
         }}
 
-       #grid button.pressed,
-       #grid button.pressed:hover {{
+       #vboard-main #grid button.pressed,
+       #vboard-main #grid button.pressed:hover {{
             border: 1px solid {self.text_color};
         }}
 
-       #grid button.active-modifier {{
+       #vboard-main #grid button.active-modifier {{
             border: 1px solid #00CACB;
             {gnome_specific}
         }}
 
-       #esc-button {{
+       #vboard-main #esc-button {{
             min-width: 60px;
           border: 1px solid white;
           background-image: none;
        }}
 
-      #esc-button:hover {{
+      #vboard-main #esc-button:hover {{
           border: 1px solid #00CACB;
         }}
 
-       tooltip {{
+       #vboard-main tooltip {{
             color: white;
             padding: 5px;
         }}
 
-       #combobox button.combo  {{
+       #vboard-main #combobox button.combo  {{
 
             color: {self.text_color};
             padding: 5px;
@@ -632,6 +630,7 @@ class VirtualKeyboard(Gtk.Window):
             provider.load_from_data(css.encode("utf-8"))
         except GLib.GError as e:
             print(f"CSS Error: {e.message}")
+        # Scope custom styling to the main window only.
         Gtk.StyleContext.add_provider_for_screen(self.get_screen(), provider, Gtk.STYLE_PROVIDER_PRIORITY_USER)
 
     def create_row(self, grid, row_index, keys):
