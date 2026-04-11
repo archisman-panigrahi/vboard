@@ -1,2 +1,6 @@
 __pycache*
 .codex
+AUR/pkg/
+AUR/src/
+AUR/vboard/
+AUR/*.tar.zst
