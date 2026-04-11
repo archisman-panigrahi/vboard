@@ -162,6 +162,39 @@ The keyboard layout is defined in the `rows` list in the source code. To modify 
 
 ## Troubleshooting
 
+### Input does not work
+
+If vboard opens but pressing keys does not type anything, the `uinput` backend usually could not open `/dev/uinput`.
+
+1. Check whether `uinput` exists and inspect its permissions:
+
+```bash
+ls -l /dev/uinput
+```
+
+2. Run the setup helper again as root:
+
+```bash
+sudo bash scripts/setup-uinput.sh
+```
+
+3. Reload `udev` rules and retrigger the device:
+
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput
+```
+
+4. Log out and back in, or reboot, so your desktop session picks up the updated device permissions.
+
+5. If it still does not work, add your user to the `input` group and log out/in again:
+
+```bash
+sudo usermod -a -G input $USER
+```
+
+You can also start vboard from a terminal and look for errors such as `Could not initialize uinput backend ([Errno 13])`.
+
 ### Error: no such device
 Make sure `uinput` module is loaded:
 ```bash
