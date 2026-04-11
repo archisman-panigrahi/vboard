@@ -1,9 +1,6 @@
 name: Build Debian Package
 
 'on':
-  push:
-    branches:
-      - kde-fix
   pull_request:
   release:
     types:
