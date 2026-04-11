@@ -3,9 +3,7 @@
 
 *Works with both GNOME and KDE Plasma*.
 
-
-<img src="screenshots/vboard_plasma.png" width="800">
-
+<img src="screenshots/stitched.gif" width="600">
 
 ## Overview
 vboard is a lightweight, customizable virtual keyboard designed for Linux systems with Wayland support. It provides a full on-screen keyboard with modifier keys such as Ctrl, Alt, and Super (Meta/Win), which makes it especially useful for:
@@ -18,7 +16,7 @@ vboard is a lightweight, customizable virtual keyboard designed for Linux system
 The keyboard supports customizable colors, opacity settings, and can be easily modified to support different layouts.
 
 ## Features
-- **Customizable appearance**: Change background color, text color, and opacity
+- **Customizable appearance**: Change background color and opacity
 - **Persistent settings**: Configuration is saved between sessions
 - **Modifier key support**: Provide Ctrl, Alt, Tab and Super (Meta/Win) keys
 - **Hold for repetitive clicks**: Keep holding the mouse button to trigger repeated clicks
