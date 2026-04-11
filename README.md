@@ -29,7 +29,7 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 
 **For Debian/Ubuntu-based distributions:**
 ```bash
-sudo apt install python3-gi gir1.2-gtk-3.0 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build
+sudo apt install python3-gi gir1.2-gtk-3.0 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build --no-install-recommends
 ```
 
 **For Fedora-based distributions:**
