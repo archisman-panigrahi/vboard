@@ -1,44 +1,191 @@
-import gi
-import uinput
-import time
-import os
+#!/usr/bin/env python3
+
 import configparser
+import os
 
-os.environ['GDK_BACKEND'] = 'x11'
+import gi
 
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
+gi.require_version("Gtk", "3.0")
 from gi.repository import GLib
+from gi.repository import Gtk
+
+APPINDICATOR_AVAILABLE = False
+AppIndicator3 = None
+APPINDICATOR_BACKEND = None
+
+try:
+    gi.require_version("AyatanaAppIndicator3", "0.1")
+    from gi.repository import AyatanaAppIndicator3 as AppIndicator3
+
+    APPINDICATOR_AVAILABLE = True
+    APPINDICATOR_BACKEND = "ayatana"
+except (ImportError, ValueError):
+    try:
+        gi.require_version("AppIndicator3", "0.1")
+        from gi.repository import AppIndicator3
+
+        APPINDICATOR_AVAILABLE = True
+        APPINDICATOR_BACKEND = "appindicator"
+    except (ImportError, ValueError):
+        APPINDICATOR_AVAILABLE = False
+        APPINDICATOR_BACKEND = None
+
+try:
+    import uinput
+except ImportError:
+    uinput = None
 
 
-key_mapping = {uinput.KEY_ESC: "Esc", uinput.KEY_1: "1", uinput.KEY_2: "2", uinput.KEY_3: "3", uinput.KEY_4: "4", uinput.KEY_5: "5", uinput.KEY_6: "6",
-    uinput.KEY_7: "7", uinput.KEY_8: "8", uinput.KEY_9: "9", uinput.KEY_0: "0", uinput.KEY_MINUS: "-", uinput.KEY_EQUAL: "=",
-    uinput.KEY_BACKSPACE: "Backspace", uinput.KEY_TAB: "Tab", uinput.KEY_Q: "Q", uinput.KEY_W: "W", uinput.KEY_E: "E", uinput.KEY_R: "R",
-    uinput.KEY_T: "T", uinput.KEY_Y: "Y", uinput.KEY_U: "U", uinput.KEY_I: "I", uinput.KEY_O: "O", uinput.KEY_P: "P",
-    uinput.KEY_LEFTBRACE: "[", uinput.KEY_RIGHTBRACE: "]", uinput.KEY_ENTER: "Enter", uinput.KEY_LEFTCTRL: "Ctrl_L", uinput.KEY_A: "A",
-    uinput.KEY_S: "S", uinput.KEY_D: "D", uinput.KEY_F: "F", uinput.KEY_G: "G", uinput.KEY_H: "H", uinput.KEY_J: "J", uinput.KEY_K: "K",
-    uinput.KEY_L: "L", uinput.KEY_SEMICOLON: ";", uinput.KEY_APOSTROPHE: "'", uinput.KEY_GRAVE: "`", uinput.KEY_LEFTSHIFT: "Shift_L",
-    uinput.KEY_BACKSLASH: "\\", uinput.KEY_Z: "Z", uinput.KEY_X: "X", uinput.KEY_C: "C", uinput.KEY_V: "V", uinput.KEY_B: "B",
-    uinput.KEY_N: "N", uinput.KEY_M: "M", uinput.KEY_COMMA: ",", uinput.KEY_DOT: ".", uinput.KEY_SLASH: "/", uinput.KEY_RIGHTSHIFT: "Shift_R",
-    uinput.KEY_KPENTER: "Enter", uinput.KEY_LEFTALT: "Alt_L", uinput.KEY_RIGHTALT: "Alt_R", uinput.KEY_SPACE: "Space", uinput.KEY_CAPSLOCK: "CapsLock",
-    uinput.KEY_F1: "F1", uinput.KEY_F2: "F2", uinput.KEY_F3: "F3", uinput.KEY_F4: "F4", uinput.KEY_F5: "F5", uinput.KEY_F6: "F6",
-    uinput.KEY_F7: "F7", uinput.KEY_F8: "F8", uinput.KEY_F9: "F9", uinput.KEY_F10: "F10", uinput.KEY_F11: "F11", uinput.KEY_F12: "F12",
-    uinput.KEY_SCROLLLOCK: "ScrollLock", uinput.KEY_PAUSE: "Pause", uinput.KEY_INSERT: "Insert", uinput.KEY_HOME: "Home",
-    uinput.KEY_PAGEUP: "PageUp", uinput.KEY_DELETE: "Delete", uinput.KEY_END: "End", uinput.KEY_PAGEDOWN: "PageDown",
-    uinput.KEY_RIGHT: "→", uinput.KEY_LEFT: "←", uinput.KEY_DOWN: "↓", uinput.KEY_UP: "↑", uinput.KEY_NUMLOCK: "NumLock",
-    uinput.KEY_RIGHTCTRL: "Ctrl_R", uinput.KEY_LEFTMETA:"Super_L", uinput.KEY_RIGHTMETA:"Super_R"}
+MODIFIER_KEYS = [
+    "Shift_L",
+    "Shift_R",
+    "Ctrl_L",
+    "Ctrl_R",
+    "Alt_L",
+    "Alt_R",
+    "Super_L",
+    "Super_R",
+]
+
+KEY_ROWS = [
+    ["`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "Backspace"],
+    ["Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\"],
+    ["CapsLock", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", "Enter"],
+    ["Shift_L", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "Shift_R", "↑"],
+    ["Ctrl_L", "Super_L", "Alt_L", "Space", "Alt_R", "Super_R", "Ctrl_R", "←", "→", "↓"],
+]
+
+
+class InputBackend:
+    name = "unknown"
+
+    def emit_key(self, key_label, modifiers):
+        raise NotImplementedError
+
+
+class UInputBackend(InputBackend):
+    name = "uinput"
+
+    def __init__(self):
+        if uinput is None:
+            raise RuntimeError("python-uinput is not installed")
+
+        self.key_map = {
+            "Esc": uinput.KEY_ESC,
+            "1": uinput.KEY_1,
+            "2": uinput.KEY_2,
+            "3": uinput.KEY_3,
+            "4": uinput.KEY_4,
+            "5": uinput.KEY_5,
+            "6": uinput.KEY_6,
+            "7": uinput.KEY_7,
+            "8": uinput.KEY_8,
+            "9": uinput.KEY_9,
+            "0": uinput.KEY_0,
+            "-": uinput.KEY_MINUS,
+            "=": uinput.KEY_EQUAL,
+            "Backspace": uinput.KEY_BACKSPACE,
+            "Tab": uinput.KEY_TAB,
+            "Q": uinput.KEY_Q,
+            "W": uinput.KEY_W,
+            "E": uinput.KEY_E,
+            "R": uinput.KEY_R,
+            "T": uinput.KEY_T,
+            "Y": uinput.KEY_Y,
+            "U": uinput.KEY_U,
+            "I": uinput.KEY_I,
+            "O": uinput.KEY_O,
+            "P": uinput.KEY_P,
+            "[": uinput.KEY_LEFTBRACE,
+            "]": uinput.KEY_RIGHTBRACE,
+            "Enter": uinput.KEY_ENTER,
+            "Ctrl_L": uinput.KEY_LEFTCTRL,
+            "Ctrl_R": uinput.KEY_RIGHTCTRL,
+            "A": uinput.KEY_A,
+            "S": uinput.KEY_S,
+            "D": uinput.KEY_D,
+            "F": uinput.KEY_F,
+            "G": uinput.KEY_G,
+            "H": uinput.KEY_H,
+            "J": uinput.KEY_J,
+            "K": uinput.KEY_K,
+            "L": uinput.KEY_L,
+            ";": uinput.KEY_SEMICOLON,
+            "'": uinput.KEY_APOSTROPHE,
+            "`": uinput.KEY_GRAVE,
+            "Shift_L": uinput.KEY_LEFTSHIFT,
+            "Shift_R": uinput.KEY_RIGHTSHIFT,
+            "\\": uinput.KEY_BACKSLASH,
+            "Z": uinput.KEY_Z,
+            "X": uinput.KEY_X,
+            "C": uinput.KEY_C,
+            "V": uinput.KEY_V,
+            "B": uinput.KEY_B,
+            "N": uinput.KEY_N,
+            "M": uinput.KEY_M,
+            ",": uinput.KEY_COMMA,
+            ".": uinput.KEY_DOT,
+            "/": uinput.KEY_SLASH,
+            "Alt_L": uinput.KEY_LEFTALT,
+            "Alt_R": uinput.KEY_RIGHTALT,
+            "Space": uinput.KEY_SPACE,
+            "CapsLock": uinput.KEY_CAPSLOCK,
+            "→": uinput.KEY_RIGHT,
+            "←": uinput.KEY_LEFT,
+            "↓": uinput.KEY_DOWN,
+            "↑": uinput.KEY_UP,
+            "Super_L": uinput.KEY_LEFTMETA,
+            "Super_R": uinput.KEY_RIGHTMETA,
+        }
+
+        self.modifier_order = [
+            "Shift_L",
+            "Shift_R",
+            "Ctrl_L",
+            "Ctrl_R",
+            "Alt_L",
+            "Alt_R",
+            "Super_L",
+            "Super_R",
+        ]
+        self.device = uinput.Device(list(self.key_map.values()))
+
+    def emit_key(self, key_label, modifiers):
+        key_event = self.key_map.get(key_label)
+        if key_event is None:
+            return
+
+        for mod_key in self.modifier_order:
+            if modifiers.get(mod_key, False):
+                self.device.emit(self.key_map[mod_key], 1)
+
+        self.device.emit(key_event, 1)
+        self.device.emit(key_event, 0)
+
+        for mod_key in self.modifier_order:
+            if modifiers.get(mod_key, False):
+                self.device.emit(self.key_map[mod_key], 0)
 
 class VirtualKeyboard(Gtk.Window):
     def __init__(self):
         super().__init__(title="Virtual Keyboard", name="toplevel")
 
+        self.exiting = False
         self.set_border_width(0)
         self.set_resizable(True)
         self.set_keep_above(True)
+        self.set_skip_taskbar_hint(True)
+        self.set_skip_pager_hint(True)
+        self.stick()
         self.set_modal(False)
         self.set_focus_on_map(False)
         self.set_can_focus(False)
         self.set_accept_focus(False)
+        self.connect("delete-event", self.on_delete_event)
+        self.connect("map-event", self.on_map_keep_above)
+        self.connect("window-state-event", self.on_window_state_changed)
+        self._keep_above_retries = 0
+        self._keep_above_timer_id = None
         self.width=0
         self.height=0
 
@@ -51,16 +198,7 @@ class VirtualKeyboard(Gtk.Window):
         self.text_color="white"
         self.read_settings()
 
-        self.modifiers = {
-            uinput.KEY_LEFTSHIFT: False,
-            uinput.KEY_RIGHTSHIFT: False,
-            uinput.KEY_LEFTCTRL: False,
-            uinput.KEY_RIGHTCTRL: False,
-            uinput.KEY_LEFTALT: False,
-            uinput.KEY_RIGHTALT: False,
-            uinput.KEY_LEFTMETA: False,
-            uinput.KEY_RIGHTMETA: False
-        }
+        self.modifiers = {mod_key: False for mod_key in MODIFIER_KEYS}
         self.colors = [
             ("Black", "0,0,0"),
             ("Red", "255,0,0"),
@@ -111,21 +249,78 @@ class VirtualKeyboard(Gtk.Window):
         grid.set_name("grid")
         self.add(grid)
         self.apply_css()
-        self.device = uinput.Device(list(key_mapping.keys()))
+        self.backend = UInputBackend()
+        self.create_tray_icon()
 
         # Define rows for keys
-        rows = [
-            ["`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "Backspace" ],
-            ["Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\"],
-            ["CapsLock", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", "Enter"],
-            ["Shift_L", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "Shift_R", "↑"],
-            ["Ctrl_L","Super_L", "Alt_L", "Space", "Alt_R", "Super_R", "Ctrl_R", "←", "→", "↓"]
-        ]
-
         # Create each row and add it to the grid
-        for row_index, keys in enumerate(rows):
+        for row_index, keys in enumerate(KEY_ROWS):
             self.create_row(grid, row_index, keys)
 
+    def create_tray_icon(self):
+        if not APPINDICATOR_AVAILABLE:
+            self.tray_icon = None
+            print("Warning: AppIndicator backend not available. Tray disabled.")
+            return
+
+        if APPINDICATOR_BACKEND == "ayatana":
+            # Suppress upstream runtime deprecation spam from libayatana-appindicator.
+            GLib.log_set_handler(
+                "libayatana-appindicator",
+                GLib.LogLevelFlags.LEVEL_WARNING,
+                lambda domain, level, message, user_data: None,
+                None,
+            )
+
+        self.tray_icon = AppIndicator3.Indicator.new(
+            "vboard",
+            "preferences-desktop-keyboard",
+            AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
+        )
+        self.tray_icon.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
+
+        self.tray_menu = Gtk.Menu()
+        self.tray_toggle_item = Gtk.MenuItem(label="Hide")
+        self.tray_toggle_item.connect("activate", self.on_tray_toggle)
+        self.tray_menu.append(self.tray_toggle_item)
+
+        quit_item = Gtk.MenuItem(label="Quit")
+        quit_item.connect("activate", self.on_tray_quit)
+        self.tray_menu.append(quit_item)
+        self.tray_menu.show_all()
+        self.tray_icon.set_menu(self.tray_menu)
+
+    def update_tray_menu(self):
+        if self.get_visible():
+            self.tray_toggle_item.set_label("Hide")
+        else:
+            self.tray_toggle_item.set_label("Show")
+
+    def on_tray_activate(self, icon):
+        if self.get_visible():
+            self.hide()
+        else:
+            self.show_all()
+            self.present()
+            self.request_keep_above()
+        self.update_tray_menu()
+
+    def on_tray_toggle(self, widget):
+        self.on_tray_activate(None)
+
+    def on_tray_quit(self, widget):
+        self.exiting = True
+        self.save_settings()
+        self.destroy()
+
+    def on_delete_event(self, widget, event):
+        if self.exiting:
+            return False
+        if self.tray_icon is None:
+            return False
+        self.hide()
+        self.update_tray_menu()
+        return True
 
     def create_settings(self):
         self.create_button("☰", self.change_visibility,callbacks=1)
@@ -144,6 +339,32 @@ class VirtualKeyboard(Gtk.Window):
 
     def on_resize(self, widget, event):
         self.width, self.height = self.get_size()  # Get the current size after resize
+
+    def on_map_keep_above(self, widget, event):
+        # Reapply hints when mapped since some compositors ignore initial requests.
+        self.request_keep_above()
+        # Keep requesting for a short period so compositors that defer placement
+        # still receive repeated keep-above requests.
+        self._keep_above_retries = 30
+        if self._keep_above_timer_id is None:
+            self._keep_above_timer_id = GLib.timeout_add(500, self.keep_above_tick)
+        return False
+
+    def request_keep_above(self):
+        self.set_keep_above(True)
+        self.stick()
+
+    def keep_above_tick(self):
+        self.request_keep_above()
+        self._keep_above_retries -= 1
+        if self._keep_above_retries <= 0:
+            self._keep_above_timer_id = None
+            return False
+        return True
+
+    def on_window_state_changed(self, widget, event):
+        self.request_keep_above()
+        return False
 
 
 
@@ -288,30 +509,28 @@ class VirtualKeyboard(Gtk.Window):
 
 
         for key_label in keys:
-            key_event = next((key for key, label in key_mapping.items() if label == key_label), None)
-            if key_event:
-                if key_label in ("Shift_R", "Shift_L", "Alt_L", "Alt_R", "Ctrl_L", "Ctrl_R", "Super_L", "Super_R"):
-                    button = Gtk.Button(label=key_label[:-2])
-                else:
-                    button = Gtk.Button(label=key_label)
-                button.connect("pressed", self.on_button_press, key_event)
-                button.connect("released", self.on_button_release)
-                button.connect("leave-notify-event", self.on_button_release)
-                self.row_buttons.append(button)
-                if key_event in self.modifiers:
-                    self.modifier_buttons[key_event] = button
-                if key_label == "Space": width=12
-                elif key_label == "CapsLock": width=3
-                elif key_label == "Shift_R" : width=4
-                elif key_label == "Shift_L" : width=4
-                elif key_label == "Backspace": width=5
-                elif key_label == "`": width=1
-                elif key_label == "\\" : width=4
-                elif key_label == "Enter": width=5
-                else: width=2
+            if key_label in ("Shift_R", "Shift_L", "Alt_L", "Alt_R", "Ctrl_L", "Ctrl_R", "Super_L", "Super_R"):
+                button = Gtk.Button(label=key_label[:-2])
+            else:
+                button = Gtk.Button(label=key_label)
+            button.connect("pressed", self.on_button_press, key_label)
+            button.connect("released", self.on_button_release)
+            button.connect("leave-notify-event", self.on_button_release)
+            self.row_buttons.append(button)
+            if key_label in self.modifiers:
+                self.modifier_buttons[key_label] = button
+            if key_label == "Space": width=12
+            elif key_label == "CapsLock": width=3
+            elif key_label == "Shift_R" : width=4
+            elif key_label == "Shift_L" : width=4
+            elif key_label == "Backspace": width=5
+            elif key_label == "`": width=1
+            elif key_label == "\\" : width=4
+            elif key_label == "Enter": width=5
+            else: width=2
 
-                grid.attach(button, col, row_index, width, 1)
-                col += width  # Skip 4 columns for the space button
+            grid.attach(button, col, row_index, width, 1)
+            col += width  # Skip 4 columns for the space button
 
     def update_label(self, show_symbols):
         button_positions = [(0, "` ~"), (1, "1 !"), (2, "2 @"), (3, "3 #"), (4, "4 $"), (5, "5 %"), (6, "6 ^"), (7, "7 &"), (8, "8 *"), (9, "9 ("), (10, "0 )")
@@ -339,12 +558,12 @@ class VirtualKeyboard(Gtk.Window):
             self.update_modifier(key_event, not self.modifiers[key_event])
 
             # prevent both shifts being active at once
-            if self.modifiers[uinput.KEY_LEFTSHIFT] and self.modifiers[uinput.KEY_RIGHTSHIFT]:
-                self.update_modifier(uinput.KEY_LEFTSHIFT, False)
-                self.update_modifier(uinput.KEY_RIGHTSHIFT, False)
+            if self.modifiers["Shift_L"] and self.modifiers["Shift_R"]:
+                self.update_modifier("Shift_L", False)
+                self.update_modifier("Shift_R", False)
 
             # update label state (caps-like effect)
-            if self.modifiers[uinput.KEY_LEFTSHIFT] or self.modifiers[uinput.KEY_RIGHTSHIFT]:
+            if self.modifiers["Shift_L"] or self.modifiers["Shift_R"]:
                 self.update_label(True)
             else:
                 self.update_label(False)
@@ -375,19 +594,10 @@ class VirtualKeyboard(Gtk.Window):
         return True  # keep repeating
 
     def emit_key(self, key_event):
-        # Apply active modifiers
-        for mod_key, active in self.modifiers.items():
-            if active:
-                self.device.emit(mod_key, 1)
-
-        # Emit the key
-        self.device.emit(key_event, 1)
-        self.device.emit(key_event, 0)
+        self.backend.emit_key(key_event, self.modifiers)
         self.update_label(False)
-        # Release modifiers (so they only act as held while sending this key)
         for mod_key, active in self.modifiers.items():
             if active:
-                self.device.emit(mod_key, 0)
                 self.update_modifier(mod_key, False)
 
     def read_settings(self):

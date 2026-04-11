@@ -21,23 +21,25 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 - **Hold for repetitive clicks**: Keep holding the mouse button to trigger repeated clicks
 - **Compact interface**: Headerbar with minimal controls to save screen space
 - **Always-on-top**: Stays above other windows for easy access
+- **uinput input backend**: Injects keys through Linux `uinput`
 
-### **1. Install Dependencies**  
-Install  `python-uinput steam-devices` packages using your package manager:  
+### **1. Install Dependencies**
+
+Install GTK and the `uinput` backend:
 
 **For Debian/Ubuntu-based distributions:**  
 ```bash
-sudo apt install python3-uinput steam-devices
+sudo apt install python3-gi gir1.2-gtk-3.0 python3-uinput steam-devices
 ```
 
 **For Fedora-based distributions:**  
 ```bash
-sudo dnf install python3-uinput steam-devices
+sudo dnf install python3-gobject gtk3 python3-uinput steam-devices
 ```
 
 **For arch-based distributions:**  
 ```bash
-yay -Syu python-uinput steam-devices
+yay -Syu python-gobject gtk3 python-uinput steam-devices
 ```
 
 
@@ -55,7 +57,28 @@ wget https://github.com/mdev588/vboard/releases/download/v1.21/vboard.py
 python3 vboard.py
 ```
 
-### **4. Create shortcut (optional)**  
+### **4. Build and install with Meson**
+
+From the repository root:
+
+```bash
+meson setup builddir
+meson install -C builddir
+```
+
+This installs:
+
+- `vboard` to your `bindir` (default: `/usr/local/bin`)
+- `org.mdev.vboard.desktop` to `share/applications`
+- helper scripts and docs to `share/vboard`
+
+During `meson install`, if a KDE/Plasma session is detected and `DESTDIR` is not set,
+the install hook automatically runs:
+
+- `install-plasma-osk.sh`
+- `install-kwin-rule.sh`
+
+### **5. Create shortcut (optional)**  
 
 ```bash
 mkdir -p ~/.local/share/applications/
@@ -70,11 +93,28 @@ Categories=Utility
 NoDisplay=false
 EOF
 ```
-Make shortcut executable
+Make the shortcut executable:
 ```
 chmod +x ~/.local/share/applications/vboard.desktop
 ```
-Now you should find it in menu insdie Utility section
+Now you should find it in the menu inside the Utility section.
+
+## KWin window rule
+
+If you want KWin itself to keep vboard on top and prevent focus, install the generated rule:
+
+```bash
+chmod +x scripts/install-kwin-rule.sh scripts/uninstall-kwin-rule.sh
+./scripts/install-kwin-rule.sh
+```
+
+To remove it later:
+
+```bash
+./scripts/uninstall-kwin-rule.sh
+```
+
+This writes a dedicated section in `~/.config/kwinrulesrc` and asks KWin to reload its configuration.
 
 ### Usage
 When launched, vboard presents a compact keyboard with a minimal interface. The keyboard includes:
@@ -103,7 +143,9 @@ The keyboard layout is defined in the rows list in the source code. To modify th
 4. The format follows a nested list structure where each inner list represents a row of keys
 
 ## Troubleshooting
-### 1. Error: 'no such device'
+### 1. `uinput` backend is not opening
+
+### 2. Error: 'no such device'
  Make sure uinput kernel module is loded with
 ```bash
 sudo modprobe uinput
@@ -114,13 +156,13 @@ to make sure it auto load on boot create file with
 echo 'uinput' | sudo tee /etc/modules-load.d/module-uinput.conf
 ```
 ---
-### 2. Error: 'Permission Denied'
+### 3. Error: 'Permission Denied'
 Reload udev rules with
 ```bash
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 ---
-### 3. Error: 'steam-devices package not found'.
+### 4. Error: 'steam-devices package not found'.
 - in Fedora make sure the RPM Fusion repository is enabled. You can follow the guide here:
 https://rpmfusion.org/Configuration
 - Others can follow steps in here https://github.com/mdev588/vboard/issues/8
@@ -140,6 +182,4 @@ vboard is licensed under the GNU Lesser General Public License v2.1. See LICENSE
 ## Note
 
 * Currently only the QWERTY US layout is supported, so other layouts may cause some keys to produce different keystrokes. But this could easily be fixed by modifying the row list arrangement.
-
-* Currently do not work correctly on wlroots based window managers.
 

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Vboard
+Comment=Virtual keyboard
+Exec=@VBOARD_EXEC@
+Icon=preferences-desktop-keyboard
+Terminal=false
+NoDisplay=true
+X-KDE-Wayland-VirtualKeyboard=true
+Categories=Utility;Accessibility;
+StartupNotify=true

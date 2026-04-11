@@ -1,5 +1,7 @@
 # uinput troubleshooting
 
+vboard now uses `uinput` as its only input backend. This document covers common device and permission issues.
+
 If `vboard.py` fails with:
 
 ```text
