@@ -24,10 +24,9 @@ install_data(
 )
 
 install_data(
-  'scripts/install-plasma-osk.sh',
-  'scripts/uninstall-plasma-osk.sh',
   'scripts/install-kwin-rule.sh',
   'scripts/uninstall-kwin-rule.sh',
+  'scripts/meson-post-install.sh',
   'scripts/setup-uinput.sh',
   install_dir: scripts_install_dir,
   install_mode: 'rwxr-xr-x',
@@ -42,12 +41,12 @@ configured_desktop = configure_file(
 )
 
 install_data(configured_desktop, install_dir: applications_dir)
-install_data(configured_desktop, install_dir: vboard_data_dir)
 
 meson.add_install_script(
   'scripts/meson-post-install.sh',
   join_paths(get_option('prefix'), scripts_install_dir),
   get_option('prefix'),
+  join_paths(get_option('prefix'), applications_dir),
 )
 
 run_target(
