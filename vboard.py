@@ -633,7 +633,7 @@ class VirtualKeyboard(Gtk.Window):
         about_dialog.set_program_name("Vboard")
         about_dialog.set_version("1.3")
         about_dialog.set_comments(
-            "A lightweight virtual keyboard for Linux and Wayland.\n\n"
+            "A lightweight virtual keyboard for GNU/Linux with Wayland support.\n\n"
             "Originally created by mdev588. The original project was archived, "
             "and it is now maintained by Archisman Panigrahi.\n\n"
             "Icon by honjow.\n\n"
