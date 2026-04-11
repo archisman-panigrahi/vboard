@@ -13,6 +13,18 @@ class InputBackend:
         raise NotImplementedError
 
 
+class NullInputBackend(InputBackend):
+    name = "disabled"
+
+    def __init__(self, reason=None):
+        self.reason = reason
+        if reason:
+            print(f"Warning: {reason}")
+
+    def emit_key(self, key_label, modifiers):
+        return
+
+
 class UInputBackend(InputBackend):
     name = "uinput"
 
