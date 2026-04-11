@@ -9,6 +9,16 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib
 from gi.repository import Gtk
 
+
+def get_desktop_environment():
+    desktop_env = os.environ.get("XDG_CURRENT_DESKTOP", "")
+    if desktop_env:
+        return desktop_env.upper()
+    return ""
+
+
+DESKTOP_ENV = get_desktop_environment()
+
 APPINDICATOR_AVAILABLE = False
 AppIndicator3 = None
 APPINDICATOR_BACKEND = None
@@ -52,7 +62,7 @@ KEY_ROWS = [
     ["Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\"],
     ["CapsLock", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", "Enter"],
     ["Shift_L", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "Shift_R", "↑"],
-    ["Ctrl_L", "Super_L", "Alt_L", "Space", "Alt_R", "Super_R", "Ctrl_R", "←", "→", "↓"],
+    ["Ctrl_L", "Super_L", "Alt_L", "Space", "Alt_R", "Super_R", "Ctrl_R", "←", "↓", "→"],
 ]
 
 
@@ -188,6 +198,11 @@ class VirtualKeyboard(Gtk.Window):
         self._keep_above_timer_id = None
         self.width=0
         self.height=0
+        self.pos_x = 0
+        self.pos_y = 0
+        self.config_pos_x = 0
+        self.config_pos_y = 0
+        self.set_position(Gtk.WindowPosition.NONE)
 
         self.CONFIG_DIR = os.path.expanduser("~/.config/vboard")
         self.CONFIG_FILE = os.path.join(self.CONFIG_DIR, "settings.conf")
@@ -237,7 +252,6 @@ class VirtualKeyboard(Gtk.Window):
         # Set the header bar as the titlebar of the window
         self.set_titlebar(self.header)
         self.set_default_icon_name("preferences-desktop-keyboard") 
-        self.header.set_decoration_layout(":minimize,maximize,close")
 
         self.create_settings()
 
@@ -318,20 +332,26 @@ class VirtualKeyboard(Gtk.Window):
             return False
         if self.tray_icon is None:
             return False
+        self.save_settings()
         self.hide()
         self.update_tray_menu()
         return True
 
     def create_settings(self):
+        self.esc_button = Gtk.Button(label="ESC")
+        self.esc_button.connect("clicked", lambda widget: self.emit_key("Esc"))
+        self.esc_button.set_name("esc-button")
+        self.header.pack_start(self.esc_button)
+
         self.create_button("☰", self.change_visibility,callbacks=1)
         self.create_button("+", self.change_opacity,True,2)
         self.create_button("-", self.change_opacity, False,2)
-        self.create_button( f"{self.opacity}")
+        self.create_button(f"{self.opacity}")
         self.color_combobox.append_text("Change Background")
         self.color_combobox.set_active(0)
         self.color_combobox.connect("changed", self.change_color)
         self.color_combobox.set_name("combobox")
-        self.header.add(self.color_combobox)
+        self.header.pack_end(self.color_combobox)
 
 
         for label, color in self.colors:
@@ -339,6 +359,9 @@ class VirtualKeyboard(Gtk.Window):
 
     def on_resize(self, widget, event):
         self.width, self.height = self.get_size()  # Get the current size after resize
+        x, y = self.get_position()
+        if x > 0 and y > 0:
+            self.pos_x, self.pos_y = x, y
 
     def on_map_keep_above(self, widget, event):
         # Reapply hints when mapped since some compositors ignore initial requests.
@@ -380,12 +403,14 @@ class VirtualKeyboard(Gtk.Window):
             self.opacity_btn=button
             self.opacity_btn.set_tooltip_text("opacity")
 
-        self.header.add(button)
+        button.get_style_context().add_class("header-button")
+        self.header.pack_end(button)
         self.buttons.append(button)
+        return button
 
     def change_visibility(self, widget=None):
         for button in self.buttons:
-            if button.get_label()!="☰":
+            if button.get_label() != "☰" and button.get_name() != "esc-button":
                 button.set_visible(not button.get_visible())
         self.color_combobox.set_visible(not self.color_combobox.get_visible() )
 
@@ -412,6 +437,10 @@ class VirtualKeyboard(Gtk.Window):
     def apply_css (self):
         provider = Gtk.CssProvider()
 
+        gnome_specific = ""
+        if "GNOME" in DESKTOP_ENV:
+            gnome_specific = "background-image: none;"
+
 
         css = f"""
         headerbar {{
@@ -426,6 +455,7 @@ class VirtualKeyboard(Gtk.Window):
             padding: 0px;
             border: 0px;
             margin: 0px;
+            {gnome_specific}
             
 
 
@@ -460,10 +490,11 @@ class VirtualKeyboard(Gtk.Window):
         }}
 
         #grid button {{
-                    border: none ;
+                    min-width: 10px;
+                    border: 1px solid white;
                     background-image: none;
-                    padding: 0px;
-                    margin: 0px;
+                    padding: 1px;
+                    margin: 1px;
 
                 }}
 
@@ -480,6 +511,21 @@ class VirtualKeyboard(Gtk.Window):
        #grid button.pressed,
        #grid button.pressed:hover {{
             border: 1px solid {self.text_color};
+        }}
+
+       #grid button.active-modifier {{
+            border: 1px solid #00CACB;
+            {gnome_specific}
+        }}
+
+       #esc-button {{
+            min-width: 60px;
+          border: 1px solid white;
+          background-image: none;
+       }}
+
+      #esc-button:hover {{
+          border: 1px solid #00CACB;
         }}
 
        tooltip {{
@@ -521,7 +567,7 @@ class VirtualKeyboard(Gtk.Window):
                 self.modifier_buttons[key_label] = button
             if key_label == "Space": width=12
             elif key_label == "CapsLock": width=3
-            elif key_label == "Shift_R" : width=4
+            elif key_label == "Shift_R" : width=2
             elif key_label == "Shift_L" : width=4
             elif key_label == "Backspace": width=5
             elif key_label == "`": width=1
@@ -548,9 +594,9 @@ class VirtualKeyboard(Gtk.Window):
       button = self.modifier_buttons[key_event]
       style_context = button.get_style_context()
       if (value):
-          style_context.add_class('pressed')
+          style_context.add_class('active-modifier')
       else:
-          style_context.remove_class('pressed')
+          style_context.remove_class('active-modifier')
 
     def on_button_press(self, widget, key_event):
         # If it's a modifier, toggle state (like Shift, Ctrl, etc.)
@@ -615,7 +661,16 @@ class VirtualKeyboard(Gtk.Window):
                 self.text_color = self.config.get("DEFAULT", "text_color", fallback="white" )
                 self.width=self.config.getint("DEFAULT", "width" , fallback=0)
                 self.height=self.config.getint("DEFAULT", "height", fallback=0)
-                print(f"rgba: {self.bg_color}, {self.opacity}")
+                pos_x_str = self.config.get("DEFAULT", "pos_x", fallback="0")
+                pos_y_str = self.config.get("DEFAULT", "pos_y", fallback="0")
+                try:
+                    self.pos_x = int(pos_x_str)
+                    self.pos_y = int(pos_y_str)
+                    self.config_pos_x = self.pos_x
+                    self.config_pos_y = self.pos_y
+                except ValueError:
+                    self.pos_x = self.config_pos_x = 0
+                    self.pos_y = self.config_pos_y = 0
 
         except configparser.Error as e:
             print(f"Warning: Could not read config file ({e}). Using default values.")
@@ -624,7 +679,15 @@ class VirtualKeyboard(Gtk.Window):
 
     def save_settings(self):
 
-        self.config["DEFAULT"] = {"bg_color": self.bg_color, "opacity": self.opacity, "text_color": self.text_color, "width": self.width, "height": self.height}
+        self.config["DEFAULT"] = {
+            "bg_color": self.bg_color,
+            "opacity": self.opacity,
+            "text_color": self.text_color,
+            "width": self.width,
+            "height": self.height,
+            "pos_x": str(self.pos_x),
+            "pos_y": str(self.pos_y),
+        }
 
         try:
             with open(self.CONFIG_FILE, "w") as configfile:
@@ -638,7 +701,9 @@ if __name__ == "__main__":
     win = VirtualKeyboard()
     win.connect("destroy", Gtk.main_quit)
     win.connect("destroy", lambda w: win.save_settings())
-    win.show_all()
     win.connect("configure-event", win.on_resize)
+    if win.config_pos_x > 0 and win.config_pos_y > 0:
+        win.move(win.config_pos_x, win.config_pos_y)
+    win.show_all()
     win.change_visibility()
     Gtk.main()
