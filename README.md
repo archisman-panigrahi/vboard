@@ -1,5 +1,5 @@
 # vboard
-*A virtual keyboard for Linux with Wayland support and extensive customization options.*
+*A virtual keyboard for GNU/Linux with Wayland support and extensive customization options.*
 
 
 <img src="https://github.com/user-attachments/assets/66e9a879-c677-429f-bd11-503d10e63c2b" width="400">
