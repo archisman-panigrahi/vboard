@@ -23,163 +23,126 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 - **Always-on-top**: Stays above other windows for easy access
 - **uinput input backend**: Injects keys through Linux `uinput`
 
-### **1. Install Dependencies**
+## Installation
 
-Install GTK and the `uinput` backend:
+### 1. Install dependencies
 
-**For Debian/Ubuntu-based distributions:**  
+**For Debian/Ubuntu-based distributions:**
 ```bash
-sudo apt install python3-gi gir1.2-gtk-3.0 python3-uinput steam-devices
+sudo apt install python3-gi gir1.2-gtk-3.0 python3-uinput meson ninja-build
 ```
 
-**For Fedora-based distributions:**  
+**For Fedora-based distributions:**
 ```bash
-sudo dnf install python3-gobject gtk3 python3-uinput steam-devices
+sudo dnf install python3-gobject gtk3 python3-uinput meson ninja-build
 ```
 
-**For Arch-based distributions:**  
+**For Arch-based distributions:**
 ```bash
-yay -Syu python-gobject gtk3 python-uinput steam-devices
+sudo pacman -S python-gobject gtk3 python-uinput meson ninja
 ```
 
-
-### **2. Download vboard**  
-Retrieve the latest version of `vboard.py` using `wget`:  
-```bash
-wget https://github.com/mdev588/vboard/releases/download/v1.21/vboard.py
-```
-
-
-
-### **3. Run**  
+### 2. Download latest master
 
 ```bash
-python3 vboard.py
+git clone https://github.com/archisman-panigrahi/vboard.git
+cd vboard
 ```
 
-### **4. Build and install with Meson**
+### 3. Prepare uinput (required)
 
-From the repository root:
+Run once with sudo before Meson install:
 
 ```bash
-meson setup builddir
-meson install -C builddir
+sudo ./scripts/setup-uinput.sh
 ```
 
-This installs:
+If permissions still do not apply, log out/log in or restart your computer.
 
-- `vboard` to your `bindir` (default: `/usr/local/bin`)
-- `io.github.archisman-panigrahi.vboard.desktop` to `share/applications`
-- helper scripts and docs to `share/vboard`
+### 4. Build and install with Meson
 
-During `meson install`, if a KDE/Plasma session is detected and `DESTDIR` is not set,
-the install hook automatically runs:
+On KDE/Plasma, install hooks automatically create the appropriate KWin window rule for vboard.
 
-- `install-plasma-osk.sh`
-- `install-kwin-rule.sh`
-
-### **5. Create shortcut (optional)**  
+**Global install:**
 
 ```bash
-mkdir -p ~/.local/share/applications/
-cat > ~/.local/share/applications/vboard.desktop <<EOF
-[Desktop Entry]
-Exec=bash -c 'python3 ~/vboard.py'
-Icon=preferences-desktop-keyboard
-Name=Vboard
-Terminal=false
-Type=Application
-Categories=Utility
-NoDisplay=false
-EOF
+meson setup builddir --prefix=/usr/local
+meson compile -C builddir
+sudo meson install -C builddir
 ```
-Make the shortcut executable:
-```
-chmod +x ~/.local/share/applications/vboard.desktop
-```
-Now you should find it in the menu inside the Utility section.
 
-## KWin window rule
-
-If you want KWin itself to keep vboard on top and prevent focus, install the generated rule:
+**User-only install:**
 
 ```bash
-chmod +x scripts/install-kwin-rule.sh scripts/uninstall-kwin-rule.sh
-./scripts/install-kwin-rule.sh
+meson setup builddir-user --prefix=$HOME/.local
+meson compile -C builddir-user
+meson install -C builddir-user
 ```
 
-To remove it later:
+### 5. Uninstall
 
 ```bash
-./scripts/uninstall-kwin-rule.sh
+meson compile -C builddir uninstall-local
 ```
 
-This writes a dedicated section in `~/.config/kwinrulesrc` and asks KWin to reload its configuration.
+For system installs:
+```bash
+sudo meson compile -C builddir uninstall-local
+```
 
-### Usage
+## Usage
 When launched, vboard presents a compact keyboard with a minimal interface. The keyboard includes:
 - Standard QWERTY layout keys
 - Arrow keys
 - Modifier keys (Shift, Ctrl, Alt, Super)
 
-#### Interface Controls
+### Interface Controls
 - ☰ (menu) - Toggle visibility of other interface controls
 - + - Increase opacity
 - - - Decrease opacity
 - **Background dropdown** - Change the keyboard background color
 
-### Configuration
-vboard saves its settings to ~/.config/vboard/settings.conf. This configuration file stores:
+## Configuration
+vboard saves its settings to `~/.config/vboard/settings.conf`. This configuration file stores:
 - Background color
 - Opacity level
 - Text color
+
 You can manually edit this file or use the built-in interface controls to customize the appearance.
 
-### Customizing Keyboard Layout
-The keyboard layout is defined in the rows list in the source code. To modify the layout:
+## Customizing Keyboard Layout
+The keyboard layout is defined in the `rows` list in the source code. To modify the layout:
 1. Download the source code
-2. Locate the rows definition (around line 175)
+2. Locate the rows definition
 3. Modify the key arrangement as needed
-4. The format follows a nested list structure where each inner list represents a row of keys
 
 ## Troubleshooting
-### 1. `uinput` backend is not opening
 
-### 2. Error: 'no such device'
- Make sure uinput kernel module is loded with
+### Error: no such device
+Make sure `uinput` module is loaded:
 ```bash
 sudo modprobe uinput
 ```
 
-to make sure it auto load on boot create file with
+To auto-load at boot:
 ```bash
-echo 'uinput' | sudo tee /etc/modules-load.d/module-uinput.conf
+echo 'uinput' | sudo tee /etc/modules-load.d/uinput.conf
 ```
----
-### 3. Error: 'Permission Denied'
-Reload udev rules with
+
+### Error: Permission denied
+Run uinput setup script:
 ```bash
-sudo udevadm control --reload-rules && sudo udevadm trigger
+sudo ./scripts/setup-uinput.sh
 ```
----
-### 4. Error: 'steam-devices package not found'.
-- in Fedora make sure the RPM Fusion repository is enabled. You can follow the guide here:
-https://rpmfusion.org/Configuration
-- Others can follow steps in here https://github.com/mdev588/vboard/issues/8
-## Contributing 
-Contributions to vboard are welcome! Here are some ways you can help:
 
-- Add support for more keyboard layouts
-- Improve the UI
-- Fix bugs or implement new features
-- Improve documentation
+If needed, log out/log in or reboot.
 
-Please make sure to test your changes before submitting a pull request.
+## Contributing
+Contributions are welcome.
 
 ## License
-vboard is licensed under the GNU Lesser General Public License v2.1. See LICENSE.md for the full license text.
+vboard is licensed under the GNU Lesser General Public License v2.1. See `LICENSE` for details.
 
 ## Note
-
-* Currently only the QWERTY US layout is supported, so other layouts may cause some keys to produce different keystrokes. But this could easily be fixed by modifying the row list arrangement.
+Currently only the QWERTY US layout is supported.
 
