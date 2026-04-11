@@ -66,7 +66,7 @@ import sys
 config_file = sys.argv[1]
 rule_name = sys.argv[2]
 
-config = configparser.ConfigParser(interpolation=None)
+config = configparser.ConfigParser(interpolation=None, allow_no_value=True)
 config.optionxform = str
 if os.path.exists(config_file):
     config.read(config_file)
@@ -77,11 +77,19 @@ if not config.has_section("General"):
 if not config.has_section(rule_name):
     config.add_section(rule_name)
 
+for option in list(config.options(rule_name)):
+    if option.endswith("[$d]"):
+        config.remove_option(rule_name, option)
+
+for legacy_key in ("title", "titlematch"):
+    config.remove_option(rule_name, legacy_key)
+
 values = {
     "Description": "vboard always on top, no focus, remember position",
     "Enabled": "true",
-    "title": "Vboard|vboard|vboard\\.py",
-    "titlematch": "3",
+    "wmclass": "vboard",
+    "wmclassmatch": "1",
+    "wmclasscomplete": "false",
     "position": "0,0",
     "positionrule": "4",
     "above": "true",

@@ -9,6 +9,9 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib
 from gi.repository import Gtk
 
+APP_DISPLAY_NAME = "Vboard"
+APP_WM_CLASS = "vboard"
+
 
 def get_desktop_environment():
     desktop_env = os.environ.get("XDG_CURRENT_DESKTOP", "")
@@ -178,7 +181,7 @@ class UInputBackend(InputBackend):
 
 class VirtualKeyboard(Gtk.Window):
     def __init__(self):
-        super().__init__(title="Virtual Keyboard", name="toplevel")
+        super().__init__(title=APP_DISPLAY_NAME, name="toplevel")
 
         self.exiting = False
         self.set_border_width(0)
@@ -196,6 +199,8 @@ class VirtualKeyboard(Gtk.Window):
         # Remove minimize and maximize buttons while keeping resize handles
         from gi.repository import Gdk
         self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
+        self.set_wmclass(APP_WM_CLASS, APP_WM_CLASS)
+        self.set_role(APP_WM_CLASS)
         
         self.connect("delete-event", self.on_delete_event)
         self.connect("map-event", self.on_map_keep_above)
@@ -250,6 +255,7 @@ class VirtualKeyboard(Gtk.Window):
             self.set_default_size(self.width, self.height)
 
         self.header = Gtk.HeaderBar()
+        self.header.set_title(APP_DISPLAY_NAME)
         self.header.set_show_close_button(True)
         self.buttons=[]
         self.modifier_buttons={}
@@ -782,6 +788,8 @@ class VirtualKeyboard(Gtk.Window):
 
 
 if __name__ == "__main__":
+    GLib.set_prgname(APP_WM_CLASS)
+    GLib.set_application_name(APP_DISPLAY_NAME)
     win = VirtualKeyboard()
     win.connect("destroy", Gtk.main_quit)
     win.connect("destroy", lambda w: win.save_settings())

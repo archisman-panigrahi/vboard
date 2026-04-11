@@ -78,7 +78,7 @@ If permissions still do not apply, log out/log in or restart your computer.
 
 ### 4. Build and install with Meson
 
-On KDE/Plasma, install hooks automatically create the appropriate KWin window rule for vboard.
+On KDE/Plasma, install hooks automatically create the appropriate KWin window rule for vboard using its `WM_CLASS` instead of the window title.
 
 **Global install:**
 
