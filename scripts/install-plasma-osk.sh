@@ -33,13 +33,13 @@ fi
 
 if [[ "$SCOPE" == "system" ]]; then
   DESKTOP_DIR="$SYSTEM_PREFIX/share/applications"
-  SOURCE_DESKTOP_FILE="$SYSTEM_PREFIX/share/vboard/org.mdev.vboard.desktop"
+  SOURCE_DESKTOP_FILE="$SYSTEM_PREFIX/share/vboard/io.github.archisman-panigrahi.vboard.desktop"
 else
   DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
-  SOURCE_DESKTOP_FILE="$SCRIPT_DIR/../org.mdev.vboard.desktop"
+  SOURCE_DESKTOP_FILE="$SCRIPT_DIR/../io.github.archisman-panigrahi.vboard.desktop"
 fi
 
-DESKTOP_FILE="$DESKTOP_DIR/org.mdev.vboard.desktop"
+DESKTOP_FILE="$DESKTOP_DIR/io.github.archisman-panigrahi.vboard.desktop"
 
 if [[ ! -f "$SOURCE_DESKTOP_FILE" ]]; then
   echo "Desktop file not found: $SOURCE_DESKTOP_FILE" >&2

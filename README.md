@@ -69,7 +69,7 @@ meson install -C builddir
 This installs:
 
 - `vboard` to your `bindir` (default: `/usr/local/bin`)
-- `org.mdev.vboard.desktop` to `share/applications`
+- `io.github.archisman-panigrahi.vboard.desktop` to `share/applications`
 - helper scripts and docs to `share/vboard`
 
 During `meson install`, if a KDE/Plasma session is detected and `DESTDIR` is not set,

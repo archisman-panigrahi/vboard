@@ -1,4 +1,4 @@
-project('vboard', version: '1.0.0')
+project('vboard', version: '1.3')
 
 vboard_data_dir = join_paths(get_option('datadir'), 'vboard')
 scripts_install_dir = join_paths(vboard_data_dir, 'scripts')
@@ -21,7 +21,7 @@ install_data(
 install_data(
   'vboard.svg',
   install_dir: icons_dir,
-  rename: 'org.mdev.vboard.svg',
+  rename: 'io.github.archisman-panigrahi.vboard.svg',
 )
 
 install_data(
@@ -36,8 +36,8 @@ install_data(
 desktop_conf = configuration_data()
 desktop_conf.set('VBOARD_EXEC', 'vboard')
 configured_desktop = configure_file(
-  input: 'meson/org.mdev.vboard.desktop.in',
-  output: 'org.mdev.vboard.desktop',
+  input: 'meson/io.github.archisman-panigrahi.vboard.desktop.in',
+  output: 'io.github.archisman-panigrahi.vboard.desktop',
   configuration: desktop_conf,
 )
 

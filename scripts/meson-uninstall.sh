@@ -55,9 +55,9 @@ remove_file() {
 }
 
 remove_file "$BINDIR/vboard"
-remove_file "$DATADIR/applications/org.mdev.vboard.desktop"
-remove_file "$DATADIR/icons/hicolor/scalable/apps/org.mdev.vboard.svg"
-remove_file "$VBOARD_DATA_DIR/org.mdev.vboard.desktop"
+remove_file "$DATADIR/applications/io.github.archisman-panigrahi.vboard.desktop"
+remove_file "$DATADIR/icons/hicolor/scalable/apps/io.github.archisman-panigrahi.vboard.svg"
+remove_file "$VBOARD_DATA_DIR/io.github.archisman-panigrahi.vboard.desktop"
 remove_file "$VBOARD_DATA_DIR/uinput.md"
 remove_file "$VBOARD_DATA_DIR/LICENSE"
 remove_file "$SCRIPTS_DIR/install-plasma-osk.sh"

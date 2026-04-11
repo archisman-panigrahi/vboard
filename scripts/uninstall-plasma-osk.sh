@@ -36,7 +36,7 @@ else
   DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 fi
 
-DESKTOP_FILE="$DESKTOP_DIR/org.mdev.vboard.desktop"
+DESKTOP_FILE="$DESKTOP_DIR/io.github.archisman-panigrahi.vboard.desktop"
 
 if [[ -f "$DESKTOP_FILE" ]]; then
   rm -f "$DESKTOP_FILE"
