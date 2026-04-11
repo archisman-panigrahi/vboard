@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+
+RULE=/etc/udev/rules.d/70-vboard-uinput.rules
+
+case "$1" in
+  remove|deconfigure)
+    if [ -e "$RULE" ]; then
+      rm -f "$RULE"
+      if command -v udevadm >/dev/null 2>&1; then
+        udevadm control --reload-rules >/dev/null 2>&1 || true
+        if [ -e /dev/uinput ]; then
+          udevadm trigger --subsystem-match=misc --sysname-match=uinput >/dev/null 2>&1 || true
+        fi
+      fi
+    fi
+    ;;
+esac
+
+exit 0

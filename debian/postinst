@@ -4,7 +4,9 @@ set -e
 case "$1" in
   configure|triggered)
     if [ -x /usr/share/vboard/scripts/meson-post-install.sh ]; then
-      /usr/share/vboard/scripts/meson-post-install.sh /usr/share/vboard/scripts /usr || true
+      if ! /usr/share/vboard/scripts/meson-post-install.sh /usr/share/vboard/scripts /usr; then
+        printf '%s\n' 'vboard: warning: post-install integration was not completed; see /usr/share/vboard/uinput.md'
+      fi
     fi
     printf '%s\n' 'Please logout/login or reboot your computer for changes to take effect'
     ;;

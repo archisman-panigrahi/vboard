@@ -24,20 +24,27 @@ lsmod | grep uinput
 sudo modprobe uinput
 ```
 
-3. Check that the device exists and is accessible:
+3. Check that the device exists and inspect its permissions:
 
 ```bash
 ls -l /dev/uinput
 ```
 
-4. If permissions are restrictive, add your user to the `input` group and log out/in:
+4. For system installs of vboard, the package now installs `/etc/udev/rules.d/70-vboard-uinput.rules` automatically. If permissions are still restrictive, reload the rule or log out/in:
+
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput
+```
+
+5. If your distro does not grant access through `uaccess`, add your user to the `input` group and log out/in:
 
 ```bash
 sudo usermod -a -G input $USER
 newgrp input
 ```
 
-5. To load `uinput` automatically at boot:
+6. To load `uinput` automatically at boot:
 
 ```bash
 echo 'uinput' | sudo tee /etc/modules-load.d/uinput.conf

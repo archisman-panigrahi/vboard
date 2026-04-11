@@ -96,7 +96,7 @@ Run once with sudo before Meson install:
 sudo bash scripts/setup-uinput.sh
 ```
 
-If permissions still do not apply, log out/log in or restart your computer.
+For system installs, this also installs a `udev` rule so your logged-in desktop user can access `/dev/uinput`. If permissions still do not apply, log out/log in or restart your computer.
 
 ### 4. Build and install with Meson
 
@@ -179,7 +179,12 @@ Run uinput setup script:
 sudo bash scripts/setup-uinput.sh
 ```
 
-If needed, log out/log in or reboot.
+This installs the packaged `udev` rule at `/etc/udev/rules.d/70-vboard-uinput.rules` for system installs. If needed, reload `udev`, then log out/log in or reboot:
+
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput
+```
 
 ## Contributing
 Contributions are welcome.

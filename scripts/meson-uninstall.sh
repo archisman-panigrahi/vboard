@@ -45,6 +45,28 @@ export VBOARD_INSTALL_SCOPE="${VBOARD_INSTALL_SCOPE:-auto}"
 
 run_script "$SCRIPTS_DIR/uninstall-kwin-rule.sh" "--scope=auto"
 
+remove_udev_rule() {
+  local rule_path="/etc/udev/rules.d/70-vboard-uinput.rules"
+
+  if [[ "$EUID" -ne 0 ]]; then
+    return 0
+  fi
+
+  if [[ -e "$rule_path" ]]; then
+    rm -f "$rule_path"
+    echo "removed: $rule_path"
+  fi
+
+  if command -v udevadm >/dev/null 2>&1; then
+    udevadm control --reload-rules >/dev/null 2>&1 || true
+    if [[ -e /dev/uinput ]]; then
+      udevadm trigger --subsystem-match=misc --sysname-match=uinput >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
+remove_udev_rule
+
 remove_file() {
   local path="$1"
   if [[ -e "$path" || -L "$path" ]]; then
@@ -58,6 +80,7 @@ remove_file "$DATADIR/applications/io.github.archisman-panigrahi.vboard.desktop"
 remove_file "$DATADIR/icons/hicolor/scalable/apps/io.github.archisman-panigrahi.vboard.svg"
 remove_file "$VBOARD_DATA_DIR/uinput.md"
 remove_file "$VBOARD_DATA_DIR/LICENSE"
+remove_file "$VBOARD_DATA_DIR/udev/70-vboard-uinput.rules"
 remove_file "$VBOARD_PYTHON_DIR/__init__.py"
 remove_file "$VBOARD_PYTHON_DIR/__main__.py"
 remove_file "$VBOARD_PYTHON_DIR/app.py"
@@ -80,6 +103,7 @@ remove_file "$SCRIPTS_DIR/uninstall-plasma-osk.sh"
 
 # Prune empty directories we touched; ignore non-empty dirs.
 rmdir "$VBOARD_PYTHON_DIR" 2>/dev/null || true
+rmdir "$VBOARD_DATA_DIR/udev" 2>/dev/null || true
 rmdir "$SCRIPTS_DIR" 2>/dev/null || true
 rmdir "$VBOARD_DATA_DIR" 2>/dev/null || true
 rmdir "$DATADIR/applications" 2>/dev/null || true
