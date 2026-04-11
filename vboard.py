@@ -272,37 +272,55 @@ class VirtualKeyboard(Gtk.Window):
             self.create_row(grid, row_index, keys)
 
     def create_tray_icon(self):
-        if not APPINDICATOR_AVAILABLE:
-            self.tray_icon = None
-            print("Warning: AppIndicator backend not available. Tray disabled.")
-            return
+        if APPINDICATOR_AVAILABLE:
+            if APPINDICATOR_BACKEND == "ayatana":
+                # Suppress upstream runtime deprecation spam from libayatana-appindicator.
+                GLib.log_set_handler(
+                    "libayatana-appindicator",
+                    GLib.LogLevelFlags.LEVEL_WARNING,
+                    lambda domain, level, message, user_data: None,
+                    None,
+                )
 
-        if APPINDICATOR_BACKEND == "ayatana":
-            # Suppress upstream runtime deprecation spam from libayatana-appindicator.
-            GLib.log_set_handler(
-                "libayatana-appindicator",
-                GLib.LogLevelFlags.LEVEL_WARNING,
-                lambda domain, level, message, user_data: None,
-                None,
+            self.tray_icon = AppIndicator3.Indicator.new(
+                "vboard",
+                "preferences-desktop-keyboard",
+                AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
             )
+            self.tray_icon.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
 
-        self.tray_icon = AppIndicator3.Indicator.new(
-            "vboard",
-            "preferences-desktop-keyboard",
-            AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
-        )
-        self.tray_icon.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
+            self.tray_menu = Gtk.Menu()
+            self.tray_toggle_item = Gtk.MenuItem(label="Hide")
+            self.tray_toggle_item.connect("activate", self.on_tray_toggle)
+            self.tray_menu.append(self.tray_toggle_item)
 
-        self.tray_menu = Gtk.Menu()
-        self.tray_toggle_item = Gtk.MenuItem(label="Hide")
-        self.tray_toggle_item.connect("activate", self.on_tray_toggle)
-        self.tray_menu.append(self.tray_toggle_item)
+            quit_item = Gtk.MenuItem(label="Quit")
+            quit_item.connect("activate", self.on_tray_quit)
+            self.tray_menu.append(quit_item)
+            self.tray_menu.show_all()
+            self.tray_icon.set_menu(self.tray_menu)
+        else:
+            # Fallback to Gtk.StatusIcon if appindicator is not available
+            try:
+                self.tray_icon = Gtk.StatusIcon()
+                self.tray_icon.set_from_icon_name("preferences-desktop-keyboard")
+                self.tray_icon.set_tooltip_text("Vboard - Virtual Keyboard")
+                self.tray_icon.connect("activate", self.on_statusicon_activate)
+                self.tray_icon.connect("popup-menu", self.on_statusicon_popup_menu)
 
-        quit_item = Gtk.MenuItem(label="Quit")
-        quit_item.connect("activate", self.on_tray_quit)
-        self.tray_menu.append(quit_item)
-        self.tray_menu.show_all()
-        self.tray_icon.set_menu(self.tray_menu)
+                self.tray_menu = Gtk.Menu()
+                self.tray_toggle_item = Gtk.MenuItem(label="Hide")
+                self.tray_toggle_item.connect("activate", self.on_tray_toggle)
+                self.tray_menu.append(self.tray_toggle_item)
+
+                quit_item = Gtk.MenuItem(label="Quit")
+                quit_item.connect("activate", self.on_tray_quit)
+                self.tray_menu.append(quit_item)
+                self.tray_menu.show_all()
+                print("Using Gtk.StatusIcon for system tray.")
+            except Exception as e:
+                self.tray_icon = None
+                print(f"Warning: Could not create tray icon ({e}). Tray disabled.")
 
     def update_tray_menu(self):
         if self.get_visible():
@@ -318,6 +336,15 @@ class VirtualKeyboard(Gtk.Window):
             self.present()
             self.request_keep_above()
         self.update_tray_menu()
+
+    def on_statusicon_activate(self, widget):
+        """Left-click handler for Gtk.StatusIcon."""
+        self.on_tray_activate(widget)
+
+    def on_statusicon_popup_menu(self, widget, button, activate_time):
+        """Right-click handler for Gtk.StatusIcon to show context menu."""
+        if self.tray_menu:
+            self.tray_menu.popup(None, None, widget.position_menu, button, activate_time)
 
     def on_tray_toggle(self, widget):
         self.on_tray_activate(None)
