@@ -30,7 +30,7 @@ echo -e "${YELLOW}Step 2: Installing dependencies...${NC}"
 PACKAGES="python3-gi gir1.2-gtk-3.0 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build"
 
 echo "Installing: $PACKAGES"
-sudo apt install -y $PACKAGES
+sudo apt install -y --no-install-recommends $PACKAGES
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}Error: Failed to install dependencies.${NC}"
