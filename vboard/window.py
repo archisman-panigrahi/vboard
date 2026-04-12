@@ -31,6 +31,13 @@ from .suggestions import HunspellSuggestionEngine
 
 
 class VirtualKeyboard(Gtk.Window):
+    BASE_KEY_HEIGHT = 52
+    BASE_SUGGESTION_HEIGHT = 34
+    BASE_SUGGESTION_FONT_SIZE = 15
+    BASE_SUGGESTION_SPACING = 4
+    BASE_SUGGESTION_MARGIN = 3
+    BASE_SUGGESTION_MARGIN_BOTTOM = 1
+
     def __init__(self, application=None):
         super().__init__(title=APP_DISPLAY_NAME, name="toplevel")
         if application is not None:
@@ -93,6 +100,8 @@ class VirtualKeyboard(Gtk.Window):
         self.tray_toggle_item = None
         self.css_provider = Gtk.CssProvider()
         self._css_provider_registered = False
+        self._last_suggestion_scale = None
+        self.suggestion_font_size = self.BASE_SUGGESTION_FONT_SIZE
         self.set_titlebar(self.header)
         self.set_name("vboard-main")
         self.set_default_icon_name(self.get_app_icon_name())
@@ -129,9 +138,12 @@ class VirtualKeyboard(Gtk.Window):
         grid.set_margin_start(3)
         grid.set_margin_end(3)
         grid.set_name("grid")
+        grid.connect("size-allocate", self.on_grid_size_allocate)
+        self.grid = grid
         content.pack_start(grid, True, True, 0)
         self.apply_css()
         GLib.idle_add(self.preload_suggestions)
+        GLib.idle_add(self.update_suggestion_bar_scale)
 
         for row_index, keys in enumerate(KEY_ROWS):
             self.create_row(grid, row_index, keys)
@@ -317,6 +329,47 @@ class VirtualKeyboard(Gtk.Window):
         x, y = self.get_position()
         if x > 0 and y > 0:
             self.pos_x, self.pos_y = x, y
+        self.update_suggestion_bar_scale()
+
+    def on_grid_size_allocate(self, widget, allocation):
+        self.update_suggestion_bar_scale()
+
+    def update_suggestion_bar_scale(self):
+        grid_height = self.grid.get_allocated_height() if hasattr(self, "grid") else 0
+        if grid_height <= 0:
+            return False
+
+        row_height = grid_height / max(1, len(KEY_ROWS))
+        scale = row_height / self.BASE_KEY_HEIGHT
+        suggestion_height = max(24, int(round(self.BASE_SUGGESTION_HEIGHT * scale)))
+        suggestion_font_size = max(10, int(round(self.BASE_SUGGESTION_FONT_SIZE * scale)))
+        spacing = max(1, int(round(self.BASE_SUGGESTION_SPACING * scale)))
+        margin = max(1, int(round(self.BASE_SUGGESTION_MARGIN * scale)))
+        margin_bottom = max(0, int(round(self.BASE_SUGGESTION_MARGIN_BOTTOM * scale)))
+        scale_values = (
+            suggestion_height,
+            suggestion_font_size,
+            spacing,
+            margin,
+            margin_bottom,
+        )
+
+        if scale_values == self._last_suggestion_scale:
+            return False
+
+        self._last_suggestion_scale = scale_values
+        self.suggestion_font_size = suggestion_font_size
+        self.suggestion_bar.set_spacing(spacing)
+        self.suggestion_bar.set_margin_start(margin)
+        self.suggestion_bar.set_margin_end(margin)
+        self.suggestion_bar.set_margin_top(margin)
+        self.suggestion_bar.set_margin_bottom(margin_bottom)
+
+        for button in self.suggestion_buttons:
+            button.set_size_request(-1, suggestion_height)
+
+        self.apply_css()
+        return False
 
     def on_map_keep_above(self, widget, event):
         self.request_keep_above()
@@ -593,7 +646,7 @@ class VirtualKeyboard(Gtk.Window):
                     {rgba((51, 64, 85), 1.0)},
                     {rgba((32, 41, 56), 1.0)}
                 );
-                min-height: 34px;
+                min-height: 0px;
                 padding: 2px 8px;
                 box-shadow: inset 0 1px {rgba((255, 255, 255), 0.06)};
             }}
@@ -601,6 +654,7 @@ class VirtualKeyboard(Gtk.Window):
             #vboard-main #suggestion-button label,
             #vboard-main #suggestion-button:disabled label {{
                 color: {rgba((216, 223, 234), 1.0)};
+                font-size: {self.suggestion_font_size}px;
             }}
 
             #vboard-main #suggestion-button.has-suggestion {{
@@ -708,13 +762,14 @@ class VirtualKeyboard(Gtk.Window):
             #vboard-main #suggestion-button {{
                 border: 1px solid transparent;
                 background-image: none;
-                min-height: 34px;
+                min-height: 0px;
                 padding: 2px 8px;
             }}
 
             #vboard-main #suggestion-button label,
             #vboard-main #suggestion-button:disabled label {{
                 color: {self.text_color};
+                font-size: {self.suggestion_font_size}px;
             }}
 
             #vboard-main #suggestion-button.has-suggestion {{
