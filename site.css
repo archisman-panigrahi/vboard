@@ -153,11 +153,11 @@ main {
 }
 
 .hero-content {
-  display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  gap: 2rem;
-  align-items: center;
   padding: 4rem 0 2.5rem;
+}
+
+.hero-copy {
+  max-width: 72rem;
 }
 
 .eyebrow {
@@ -179,7 +179,11 @@ main {
 }
 
 .hero-copy h1 {
-  font-size: clamp(2.2rem, 4vw, 4.3rem);
+  font-size: clamp(1.9rem, 3.3vw, 3.5rem);
+}
+
+.hero-copy .tablet-shell {
+  margin: 1.35rem auto 1.6rem;
 }
 
 .lede,
@@ -204,6 +208,7 @@ main {
 
 .hero-actions {
   margin: 2rem 0 1.6rem;
+  justify-content: center;
 }
 
 .feature-pills {
@@ -248,31 +253,53 @@ main {
   border: 1px solid rgba(16, 36, 49, 0.08);
 }
 
-.hero-visual {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.screen-mockup {
-  width: min(42rem, 100%);
-}
-
-.screen-shell {
+.tablet-shell {
   position: relative;
   overflow: hidden;
-  padding: 1rem 1rem 1.15rem;
-  border-radius: 1.8rem;
+  width: min(44rem, 100%);
+  padding: 1rem 2rem 1rem 1rem;
+  border-radius: 2.4rem;
   border: 1px solid rgba(255, 255, 255, 0.72);
   background:
-    linear-gradient(160deg, rgba(246, 249, 252, 0.92), rgba(188, 204, 214, 0.86)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(190, 200, 208, 0.78));
-  box-shadow: var(--shadow);
+    linear-gradient(155deg, rgba(247, 250, 252, 0.98), rgba(193, 205, 214, 0.9)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(186, 198, 206, 0.82));
+  box-shadow:
+    var(--shadow),
+    0 1.2rem 2.4rem rgba(16, 36, 49, 0.08);
 }
 
-.screen-display {
+.tablet-shell::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0.28rem;
+  width: 0.56rem;
+  height: 0.56rem;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: #7b8790;
+}
+
+.tablet-shell::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0.34rem;
+  width: 1.42rem;
+  height: 1.42rem;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  border: 0.12rem solid rgba(100, 117, 128, 0.58);
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.46), rgba(194, 206, 214, 0.28));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.tablet-display {
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  border-radius: 0;
+  border-radius: 1.45rem;
   border: 1px solid rgba(15, 28, 37, 0.34);
   background: #0d1620;
   box-shadow:
@@ -280,35 +307,12 @@ main {
     inset 0 1.8rem 3rem rgba(255, 255, 255, 0.04);
 }
 
-.screen-display img {
+.tablet-display img {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center top;
-}
-
-.screen-stand {
-  width: 20%;
-  height: 3.8rem;
-  margin: -0.25rem auto 0;
-  border-radius: 0 0 1.1rem 1.1rem;
-  background:
-    linear-gradient(180deg, rgba(208, 217, 223, 0.95), rgba(142, 156, 166, 0.94));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 0.85rem 1.6rem rgba(16, 36, 49, 0.1);
-}
-
-.screen-base {
-  width: 52%;
-  height: 1rem;
-  margin: -0.35rem auto 0;
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(216, 224, 229, 0.98), rgba(126, 140, 149, 0.96));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.38),
-    0 0.9rem 1.6rem rgba(16, 36, 49, 0.08);
+  object-fit: contain;
+  object-position: center;
 }
 
 .panel {
@@ -498,7 +502,6 @@ pre {
 
 @media (max-width: 980px) {
   .topbar,
-  .hero-content,
   .story-grid,
   .install-grid {
     grid-template-columns: 1fr;
@@ -509,12 +512,8 @@ pre {
     align-items: flex-start;
   }
 
-  .hero-visual {
-    justify-content: flex-start;
-  }
-
-  .screen-mockup {
-    width: min(100%, 38rem);
+  .tablet-shell {
+    width: min(100%, 44rem);
   }
 }
 
@@ -536,23 +535,21 @@ pre {
     padding: 1.15rem;
   }
 
-  .hero-visual {
-    justify-content: center;
+  .tablet-shell {
+    padding: 0.8rem 1.6rem 0.8rem 0.8rem;
+    border-radius: 1.8rem;
   }
 
-  .screen-shell {
-    padding: 0.8rem 0.8rem 0.95rem;
-    border-radius: 1.35rem;
+  .tablet-shell::before {
+    left: 0.22rem;
+    width: 0.48rem;
+    height: 0.48rem;
   }
 
-  .screen-stand {
-    width: 22%;
-    height: 2.8rem;
-  }
-
-  .screen-base {
-    width: 58%;
-    height: 0.85rem;
+  .tablet-shell::after {
+    width: 1.1rem;
+    height: 1.1rem;
+    right: 0.26rem;
   }
 
   .nav-links {
