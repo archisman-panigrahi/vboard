@@ -56,7 +56,10 @@ SHIFTED_KEY_MAP = {
 
 SHIFTED_CHAR_TO_KEY_EVENT = {value: key for key, value in SHIFTED_KEY_MAP.items()}
 
+ONBOARD_BACKGROUND_PRESET = "__onboard__"
+
 COLOR_CHOICES = [
+    ("Onboard Droid Theme", ONBOARD_BACKGROUND_PRESET),
     ("Black", "0,0,0"),
     ("Red", "255,0,0"),
     ("Pink", "255,105,183"),

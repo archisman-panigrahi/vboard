@@ -9,6 +9,7 @@ from .constants import (
     KEY_WIDTHS,
     LIGHT_BACKGROUND_COLORS,
     MODIFIER_KEYS,
+    ONBOARD_BACKGROUND_PRESET,
     SHIFTED_BUTTON_LABELS,
     SHIFTED_CHAR_TO_KEY_EVENT,
     SHIFTED_KEY_MAP,
@@ -66,9 +67,10 @@ class VirtualKeyboard(Gtk.Window):
         self.CONFIG_FILE = os.path.join(self.CONFIG_DIR, "settings.conf")
         self.config = configparser.ConfigParser()
 
-        self.bg_color = "0, 0, 0"
+        self.bg_color = "0,0,0"
         self.opacity = "0.90"
         self.text_color = "white"
+        self.style_variant = "onboard"
         self.read_settings()
 
         self.modifiers = {mod_key: False for mod_key in MODIFIER_KEYS}
@@ -270,13 +272,28 @@ class VirtualKeyboard(Gtk.Window):
         self.create_button("-", self.change_opacity, False, 2)
         self.create_button(f"{self.opacity}")
         self.color_combobox.append_text("Change Background")
-        self.color_combobox.set_active(0)
         self.color_combobox.connect("changed", self.change_color)
         self.color_combobox.set_name("combobox")
         self.header.pack_end(self.color_combobox)
 
         for label, _color in COLOR_CHOICES:
             self.color_combobox.append_text(label)
+
+        active_label = "Onboard Droid Theme" if self.style_variant == "onboard" else None
+        if active_label is None:
+            for label, color in COLOR_CHOICES:
+                if color == self.bg_color:
+                    active_label = label
+                    break
+
+        active_index = 0
+        if active_label is not None:
+            for index, (label, _color) in enumerate(COLOR_CHOICES, start=1):
+                if label == active_label:
+                    active_index = index
+                    break
+
+        self.color_combobox.set_active(active_index)
 
     def create_suggestion_buttons(self):
         for _ in range(SUGGESTION_LIMIT):
@@ -348,7 +365,11 @@ class VirtualKeyboard(Gtk.Window):
         selected_label = self.color_combobox.get_active_text()
         selected_color = self.color_map.get(selected_label)
         if selected_color is not None:
-            self.bg_color = selected_color
+            if selected_color == ONBOARD_BACKGROUND_PRESET:
+                self.style_variant = "onboard"
+            else:
+                self.style_variant = "classic"
+                self.bg_color = selected_color
 
         if self.bg_color in LIGHT_BACKGROUND_COLORS:
             self.text_color = "#1C1C1C"
@@ -368,115 +389,339 @@ class VirtualKeyboard(Gtk.Window):
         gnome_specific = ""
         if "GNOME" in DESKTOP_ENV:
             gnome_specific = "background-image: none;"
+        theme_opacity = max(0.0, min(1.0, float(self.opacity)))
 
-        css = f"""
-        #vboard-main {{
-            background-color: rgba({self.bg_color}, {self.opacity});
-        }}
+        def rgba(rgb_values, alpha_scale=1.0):
+            red, green, blue = rgb_values
+            alpha = max(0.0, min(1.0, theme_opacity * alpha_scale))
+            return f"rgba({red}, {green}, {blue}, {alpha:.3f})"
 
-        #vboard-main headerbar {{
-            background-color: rgba({self.bg_color}, {self.opacity});
-            border: 0px;
-            box-shadow: none;
-        }}
+        if self.style_variant == "onboard":
+            css = f"""
+            #vboard-main {{
+                background-color: {rgba((18, 24, 33), 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((28, 35, 46), 1.0)},
+                    {rgba((18, 24, 33), 1.0)}
+                );
+                border: 1px solid {rgba((7, 11, 18), 0.95)};
+                border-radius: 16px;
+                color: {rgba((239, 243, 250), 1.0)};
+            }}
 
-        #vboard-main headerbar button {{
-            min-width: 40px;
-            padding: 0px;
-            border: 0px;
-            margin: 0px;
-            {gnome_specific}
-        }}
+            #vboard-main headerbar {{
+                background-color: {rgba((31, 39, 53), 0.96)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((52, 61, 78), 0.96)},
+                    {rgba((31, 39, 53), 0.96)}
+                );
+                border: 0px;
+                border-bottom: 1px solid {rgba((8, 12, 19), 0.9)};
+                box-shadow: none;
+                padding: 4px 6px;
+            }}
 
-        #vboard-main headerbar .titlebutton {{
-            min-width: 50px;
-            min-height: 40px;
-        }}
+            #vboard-main headerbar button {{
+                min-width: 40px;
+                min-height: 34px;
+                padding: 0px;
+                border: 1px solid {rgba((13, 21, 33), 1.0)};
+                border-radius: 8px;
+                margin: 0px 2px;
+                color: {rgba((239, 243, 250), 1.0)};
+                background-color: {rgba((38, 49, 66), 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((69, 80, 101), 1.0)},
+                    {rgba((40, 50, 68), 1.0)}
+                );
+                box-shadow: inset 0 1px {rgba((255, 255, 255), 0.08)};
+                {gnome_specific};
+            }}
 
-        #vboard-main headerbar button label {{
-            color: {self.text_color};
-        }}
+            #vboard-main headerbar .titlebutton {{
+                min-width: 50px;
+                min-height: 40px;
+            }}
 
-        #vboard-main #headbar-button,
-        #vboard-main #combobox button.combo {{
-            background-image: none;
-        }}
+            #vboard-main headerbar button:hover,
+            #vboard-main #combobox button.combo:hover {{
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((81, 94, 118), 1.0)},
+                    {rgba((49, 59, 79), 1.0)}
+                );
+            }}
 
-        #vboard-main #grid button label {{
-            color: {self.text_color};
-        }}
+            #vboard-main headerbar button:active,
+            #vboard-main #combobox button.combo:active {{
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((41, 51, 68), 1.0)},
+                    {rgba((75, 87, 112), 1.0)}
+                );
+            }}
 
-        #vboard-main #grid button {{
-            min-width: 10px;
-            border: 1px solid {self.text_color};
-            background-image: none;
-            padding: 1px;
-            margin: 1px;
-        }}
+            #vboard-main headerbar button label {{
+                color: {rgba((239, 243, 250), 1.0)};
+            }}
 
-        #vboard-main button {{
-            background-color: transparent;
-            color: {self.text_color};
-        }}
+            #vboard-main headerbar .title {{
+                color: {rgba((239, 243, 250), 0.72)};
+                font-weight: 600;
+            }}
 
-        #vboard-main #grid button:hover {{
-            border: 1px solid #00CACB;
-        }}
+            #vboard-main #headbar-button,
+            #vboard-main #combobox button.combo {{
+                background-color: {rgba((38, 49, 66), 1.0)};
+            }}
 
-        #vboard-main #grid button.pressed,
-        #vboard-main #grid button.pressed:hover {{
-            border: 1px solid {self.text_color};
-        }}
+            #vboard-main #grid button label {{
+                color: {rgba((244, 247, 251), 1.0)};
+                font-size: 19px;
+                font-weight: 500;
+            }}
 
-        #vboard-main #grid button.active-modifier {{
-            border: 1px solid #00CACB;
-            {gnome_specific}
-        }}
+            #vboard-main #grid button {{
+                min-width: 10px;
+                min-height: 52px;
+                border: 1px solid {rgba((12, 20, 32), 1.0)};
+                border-radius: 8px;
+                background-color: {rgba((48, 58, 76), 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((75, 86, 109), 1.0)},
+                    {rgba((42, 51, 69), 1.0)}
+                );
+                padding: 1px;
+                margin: 1px;
+                box-shadow:
+                    inset 0 1px {rgba((255, 255, 255), 0.09)},
+                    inset 0 -1px {rgba((0, 0, 0), 0.18)},
+                    0 1px 2px {rgba((0, 0, 0), 0.25)};
+            }}
 
-        #vboard-main #esc-button {{
-            min-width: 60px;
-            border: 1px solid {self.text_color};
-            background-image: none;
-        }}
+            #vboard-main button {{
+                color: {rgba((239, 243, 250), 1.0)};
+            }}
 
-        #vboard-main #esc-button:hover {{
-            border: 1px solid #00CACB;
-        }}
+            #vboard-main #grid button:hover {{
+                border: 1px solid {rgba((110, 126, 151), 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((86, 98, 123), 1.0)},
+                    {rgba((50, 60, 81), 1.0)}
+                );
+            }}
 
-        #vboard-main tooltip {{
-            color: white;
-            padding: 5px;
-        }}
+            #vboard-main #grid button:active,
+            #vboard-main #grid button:active:hover {{
+                border: 1px solid {rgba((141, 164, 196), 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((39, 48, 63), 1.0)},
+                    {rgba((70, 81, 106), 1.0)}
+                );
+            }}
 
-        #vboard-main #combobox button.combo {{
-            color: {self.text_color};
-            padding: 5px;
-        }}
+            #vboard-main #grid button.active-modifier {{
+                border: 1px solid {rgba((138, 163, 200), 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((96, 112, 141), 1.0)},
+                    {rgba((55, 69, 90), 1.0)}
+                );
+                {gnome_specific};
+            }}
 
-        #vboard-main #suggestion-bar {{
-            background-color: transparent;
-        }}
+            #vboard-main #esc-button {{
+                min-width: 60px;
+                min-height: 34px;
+                border: 1px solid {rgba((17, 24, 36), 1.0)};
+                border-radius: 8px;
+                color: {rgba((247, 248, 251), 1.0)};
+                background-color: {rgba((51, 64, 89), 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((86, 98, 123), 1.0)},
+                    {rgba((48, 58, 78), 1.0)}
+                );
+                box-shadow: inset 0 1px {rgba((255, 255, 255), 0.1)};
+            }}
 
-        #vboard-main #suggestion-button {{
-            border: 1px solid transparent;
-            background-image: none;
-            min-height: 34px;
-            padding: 2px 8px;
-        }}
+            #vboard-main #esc-button:hover {{
+                border: 1px solid {rgba((142, 166, 199), 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((97, 112, 139), 1.0)},
+                    {rgba((54, 65, 86), 1.0)}
+                );
+            }}
 
-        #vboard-main #suggestion-button label,
-        #vboard-main #suggestion-button:disabled label {{
-            color: {self.text_color};
-        }}
+            #vboard-main tooltip {{
+                color: white;
+                padding: 5px;
+            }}
 
-        #vboard-main #suggestion-button.has-suggestion {{
-            border: 1px solid {self.text_color};
-        }}
+            #vboard-main #combobox button.combo {{
+                color: {rgba((239, 243, 250), 1.0)};
+                padding: 5px;
+                border: 1px solid {rgba((13, 21, 33), 1.0)};
+                border-radius: 8px;
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((69, 80, 101), 1.0)},
+                    {rgba((40, 50, 68), 1.0)}
+                );
+            }}
 
-        #vboard-main #suggestion-button.has-suggestion:hover {{
-            border: 1px solid #00CACB;
-        }}
-        """
+            #vboard-main #suggestion-bar {{
+                background-color: transparent;
+            }}
+
+            #vboard-main #suggestion-button {{
+                border: 1px solid {rgba((17, 25, 37), 1.0)};
+                border-radius: 8px;
+                background-color: {rgba((32, 41, 56), 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((51, 64, 85), 1.0)},
+                    {rgba((32, 41, 56), 1.0)}
+                );
+                min-height: 34px;
+                padding: 2px 8px;
+                box-shadow: inset 0 1px {rgba((255, 255, 255), 0.06)};
+            }}
+
+            #vboard-main #suggestion-button label,
+            #vboard-main #suggestion-button:disabled label {{
+                color: {rgba((216, 223, 234), 1.0)};
+            }}
+
+            #vboard-main #suggestion-button.has-suggestion {{
+                border: 1px solid {rgba((37, 49, 68), 1.0)};
+            }}
+
+            #vboard-main #suggestion-button.has-suggestion:hover {{
+                border: 1px solid {rgba((115, 130, 154), 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((59, 73, 96), 1.0)},
+                    {rgba((38, 49, 68), 1.0)}
+                );
+            }}
+            """
+        else:
+            css = f"""
+            #vboard-main {{
+                background-color: rgba({self.bg_color}, {self.opacity});
+            }}
+
+            #vboard-main headerbar {{
+                background-color: rgba({self.bg_color}, {self.opacity});
+                border: 0px;
+                box-shadow: none;
+            }}
+
+            #vboard-main headerbar button {{
+                min-width: 40px;
+                padding: 0px;
+                border: 0px;
+                margin: 0px;
+                {gnome_specific}
+            }}
+
+            #vboard-main headerbar .titlebutton {{
+                min-width: 50px;
+                min-height: 40px;
+            }}
+
+            #vboard-main headerbar button label {{
+                color: {self.text_color};
+            }}
+
+            #vboard-main #headbar-button,
+            #vboard-main #combobox button.combo {{
+                background-image: none;
+            }}
+
+            #vboard-main #grid button label {{
+                color: {self.text_color};
+            }}
+
+            #vboard-main #grid button {{
+                min-width: 10px;
+                border: 1px solid {self.text_color};
+                background-image: none;
+                padding: 1px;
+                margin: 1px;
+            }}
+
+            #vboard-main button {{
+                background-color: transparent;
+                color: {self.text_color};
+            }}
+
+            #vboard-main #grid button:hover {{
+                border: 1px solid #00CACB;
+            }}
+
+            #vboard-main #grid button.pressed,
+            #vboard-main #grid button.pressed:hover {{
+                border: 1px solid {self.text_color};
+            }}
+
+            #vboard-main #grid button.active-modifier {{
+                border: 1px solid #00CACB;
+                {gnome_specific}
+            }}
+
+            #vboard-main #esc-button {{
+                min-width: 60px;
+                border: 1px solid {self.text_color};
+                background-image: none;
+            }}
+
+            #vboard-main #esc-button:hover {{
+                border: 1px solid #00CACB;
+            }}
+
+            #vboard-main tooltip {{
+                color: white;
+                padding: 5px;
+            }}
+
+            #vboard-main #combobox button.combo {{
+                color: {self.text_color};
+                padding: 5px;
+            }}
+
+            #vboard-main #suggestion-bar {{
+                background-color: transparent;
+            }}
+
+            #vboard-main #suggestion-button {{
+                border: 1px solid transparent;
+                background-image: none;
+                min-height: 34px;
+                padding: 2px 8px;
+            }}
+
+            #vboard-main #suggestion-button label,
+            #vboard-main #suggestion-button:disabled label {{
+                color: {self.text_color};
+            }}
+
+            #vboard-main #suggestion-button.has-suggestion {{
+                border: 1px solid {self.text_color};
+            }}
+
+            #vboard-main #suggestion-button.has-suggestion:hover {{
+                border: 1px solid #00CACB;
+            }}
+            """
 
         try:
             self.css_provider.load_from_data(css.encode("utf-8"))
@@ -682,9 +927,12 @@ class VirtualKeyboard(Gtk.Window):
         try:
             if os.path.exists(self.CONFIG_FILE):
                 self.config.read(self.CONFIG_FILE)
-                self.bg_color = self.config.get("DEFAULT", "bg_color")
+                self.bg_color = self.config.get("DEFAULT", "bg_color").replace(" ", "")
                 self.opacity = self.config.get("DEFAULT", "opacity")
                 self.text_color = self.config.get("DEFAULT", "text_color", fallback="white")
+                self.style_variant = self.config.get(
+                    "DEFAULT", "style_variant", fallback="classic"
+                )
                 self.width = self.config.getint("DEFAULT", "width", fallback=0)
                 self.height = self.config.getint("DEFAULT", "height", fallback=0)
                 pos_x_str = self.config.get("DEFAULT", "pos_x", fallback="0")
@@ -706,6 +954,7 @@ class VirtualKeyboard(Gtk.Window):
             "bg_color": self.bg_color,
             "opacity": self.opacity,
             "text_color": self.text_color,
+            "style_variant": self.style_variant,
             "width": self.width,
             "height": self.height,
             "pos_x": str(self.pos_x),
