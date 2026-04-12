@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vboard | Virtual Keyboard for GNU/Linux Wayland Desktops</title>
+  <meta
+    name="description"
+    content="vboard is a lightweight on-screen-keyboard for GNU/Linux with Wayland support, modifier keys, and smooth installation on Ubuntu and Arch."
+  >
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap"
+  >
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <div class="page-shell">
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+    <div class="grid-overlay"></div>
+
+    <header class="hero">
+      <nav class="topbar">
+        <a class="brand" href="#top">
+          <img
+            src="https://raw.githubusercontent.com/archisman-panigrahi/vboard/kde-fix/io.github.archisman-panigrahi.vboard.svg"
+            alt="vboard logo"
+          >
+          <span>vboard</span>
+        </a>
+        <div class="nav-links">
+          <a href="#problem">Why?</a>
+          <a href="#install">Install</a>
+          <a href="#history">History</a>
+          <a class="button ghost" href="https://github.com/archisman-panigrahi/vboard">GitHub</a>
+        </div>
+      </nav>
+
+      <section class="hero-content" id="top">
+        <div class="hero-copy">
+          <p class="eyebrow">Wayland-ready virtual keyboard for GNU/Linux</p>
+          <h1>A practical on-screen-keyboard for touch devices running GNU/Linux with Wayland.</h1>
+          <p class="lede">
+            A practical, customizable Wayland keyboard for GNU/Linux with essentials like Ctrl, Alt,
+            Tab, Super, and arrow keys. It is especially helpful on touchscreen hardware, kiosk
+            setups, and accessibility-focused systems.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#install">Install on Ubuntu or Arch</a>
+            <a class="button primary" href="#more">Install from source</a>
+          </div>
+          <ul class="feature-pills">
+            <li>Works on GNOME and KDE</li>
+            <li>Ctrl, Alt, Tab, and Super keys</li>
+            <li>System tray integration</li>
+            <li>Word suggestions with Hunspell</li>
+          </ul>
+        </div>
+
+        <div class="hero-visual">
+          <div class="screen-mockup">
+            <div class="screen-shell">
+              <div class="screen-display">
+                <img src="screenshots/vboard_plasma.png" alt="vboard on KDE Plasma">
+              </div>
+            </div>
+            <div class="screen-stand" aria-hidden="true"></div>
+            <div class="screen-base" aria-hidden="true"></div>
+          </div>
+        </div>
+      </section>
+    </header>
+
+    <main>
+      <section class="panel story-panel" id="problem">
+        <div class="section-heading">
+          <p class="eyebrow">We are trying to solve a problem</p>
+          <h2>A Wayland-ready  virtual keyboard with all the keys you need.</h2>
+        </div>
+        <div class="story-grid">
+          <article class="story-card">
+            <h3>The gap</h3>
+            <p>
+              Even moderately basic desktop use needs keys like Ctrl, Alt, Tab, Super, and the arrow
+              keys, especially for terminals, shortcuts, and window navigation. The on-screen-keyboards
+              shipped by KDE Plasma and GNOME do not include that full set.
+            </p>
+            <p>
+              <a href="https://github.com/onboard-osk/onboard">Onboard</a> supports this style of fuller
+              keyboard layout, but it does not work on Wayland.
+            </p>
+          </article>
+          <article class="story-card accent">
+            <h3>The answer</h3>
+            <p>
+              Vboard provides a lightweight, always-accessible keyboard with persistent appearance
+              settings, optional word suggestions, tray support, and a <code>uinput</code>-based input
+              backend built for modern GNU/Linux desktops.
+            </p>
+            <h3>Ideal for</h3>
+            <p>
+              Touchscreen devices, kiosks, accessibility workflows, and systems whose physical
+              keyboards are missing, damaged, or simply inconvenient.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel install-panel" id="install">
+        <div class="section-heading">
+          <p class="eyebrow">Install</p>
+          <h2>Fast paths for Ubuntu, Arch, and everything else.</h2>
+        </div>
+
+        <div class="install-grid">
+          <article class="install-card ubuntu">
+            <div class="card-header">
+              <span class="badge">Ubuntu</span>
+              <h3>Package, PPA, or source</h3>
+            </div>
+            <p>
+              On Debian based systems, you can install the <code>.deb</code> installer from GitHub releases.
+              In Ubuntu or Mint, you can also install from the <a href="https://launchpad.net/~apandada1/+archive/ubuntu/vboard">vboard PPA</a>.
+            </p>
+            <h4>Install from GitHub release</h4>
+            <p>
+              Download the latest <code>.deb</code> from
+              <a href="https://github.com/archisman-panigrahi/vboard/releases">GitHub Releases</a>,
+              then install it with:
+            </p>
+            <pre><code>sudo apt install ./vboard_*.deb</code></pre>
+            <p class="callout">Reboot after installation for the <code>uinput</code> permissions to apply cleanly.</p>
+
+            <h4>Install from the vboard PPA</h4>
+            <pre><code>sudo add-apt-repository ppa:apandada1/vboard
+sudo apt update
+sudo apt install vboard</code></pre>
+            <p class="callout">Reboot after installation for the <code>uinput</code> permissions to apply cleanly.</p>
+            <h4>Build the latest source version</h4>
+            <pre><code>git clone https://github.com/archisman-panigrahi/vboard.git
+cd vboard
+sudo bash setup-ubuntu-debian.sh</code></pre>
+            <p class="callout">Reboot after installation for the <code>uinput</code> permissions to apply cleanly.</p>
+          </article>
+
+          <div class="install-stack" id="more">
+            <article class="install-card arch">
+              <div class="card-header">
+                <span class="badge">Arch</span>
+                <h3>Install with Pacman</h3>
+              </div>
+              <p>
+                Official AUR package is coming soon, but till then, you can install it manually.
+              </p>
+              <!-- <h4>Install with an AUR helper</h4> -->
+              <pre><code>git clone https://github.com/archisman-panigrahi/vboard.git
+cd vboard/AUR
+makepkg -si</code></pre>
+              <p class="callout">Reboot after installation so the desktop session picks up the new device permissions cleanly.</p>
+            </article>
+
+            <article class="install-card others">
+              <div class="card-header">
+                <span class="badge">More Distros</span>
+                <h3>Fedora and everything else</h3>
+              </div>
+              <p>
+                For Fedora and other distributions, the canonical instructions
+                live in the project README. That page also covers <code>uinput</code> setup, Meson install
+                modes, KDE Plasma configuration, and troubleshooting.
+              </p>
+              <a class="button primary" href="https://github.com/archisman-panigrahi/vboard/blob/main/README.md">
+                Read the full installation guide
+              </a>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel history-panel" id="history">
+        <div class="section-heading">
+          <p class="eyebrow">History</p>
+          <!-- <h2>From the original vboard to the current project.</h2> -->
+        </div>
+        <p>
+          Vboard was initially developed by
+          <a href="https://github.com/mdev588/vboard">mdev588</a>. After that project was abandoned,
+          development and maintenance continued by Archisman Panigrahi in the current
+          <a href="https://github.com/archisman-panigrahi/vboard">vboard repository</a>.
+        </p>
+        <div class="history-media">
+          <img src="screenshots/stitched.gif" alt="Animated history montage of vboard screenshots">
+        </div>
+        <div class="history-callout">
+          <p>To report issues or suggest new features, visit the current GitHub repository.</p>
+          <a class="button primary" href="https://github.com/archisman-panigrahi/vboard">
+            Open the GitHub repository
+          </a>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

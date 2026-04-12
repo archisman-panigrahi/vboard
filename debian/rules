@@ -1,7 +1,0 @@
-#!/usr/bin/make -f
-
-%:
-	dh $@ --buildsystem=meson --builddirectory=builddir
-
-override_dh_auto_configure:
-	dh_auto_configure --buildsystem=meson --builddirectory=builddir -- --prefix=/usr
