@@ -233,8 +233,11 @@ class VirtualKeyboard(Gtk.Window):
             "A lightweight virtual keyboard for GNU/Linux with Wayland support.\n\n"
             "Originally created by mdev588. The original project was archived, "
             "and it is now maintained by Archisman Panigrahi.\n\n"
-            "Icon by honjow.\n\n"
             "Original project: https://github.com/mdev588/vboard\n"
+            "Special thanks to honjow for the icon and patches.\n"
+            "Thanks to onboard developers for the droid theme inspiration.\n"
+            "Thanks to the Hunspell project for the suggestion engine.\n"
+            "This project is licensed under GPLv3."
         )
         about_dialog.set_copyright(
             "Copyright © 2025 mdev588\n"

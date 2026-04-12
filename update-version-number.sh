@@ -13,6 +13,7 @@ message="$2"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 debian_changelog="${script_dir}/debian/changelog"
 aur_pkgbuild="${script_dir}/AUR/PKGBUILD"
+python_constants="${script_dir}/vboard/constants.py"
 
 if [[ ! -f "${debian_changelog}" ]]; then
   echo "Error: ${debian_changelog} not found" >&2
@@ -21,6 +22,11 @@ fi
 
 if [[ ! -f "${aur_pkgbuild}" ]]; then
   echo "Error: ${aur_pkgbuild} not found" >&2
+  exit 1
+fi
+
+if [[ ! -f "${python_constants}" ]]; then
+  echo "Error: ${python_constants} not found" >&2
   exit 1
 fi
 
@@ -37,7 +43,8 @@ fi
 
 tmp_changelog="$(mktemp)"
 tmp_pkgbuild="$(mktemp)"
-trap 'rm -f "${tmp_changelog}" "${tmp_pkgbuild}"' EXIT
+tmp_constants="$(mktemp)"
+trap 'rm -f "${tmp_changelog}" "${tmp_pkgbuild}" "${tmp_constants}"' EXIT
 
 {
   printf 'vboard (%s) unstable; urgency=medium\n\n' "${debian_version}"
@@ -51,5 +58,9 @@ mv "${tmp_changelog}" "${debian_changelog}"
 sed "0,/^pkgver=.*/s//pkgver=${version}/" "${aur_pkgbuild}" > "${tmp_pkgbuild}"
 mv "${tmp_pkgbuild}" "${aur_pkgbuild}"
 
+sed "0,/^VERSION = \".*\"/s//VERSION = \"${version}\"/" "${python_constants}" > "${tmp_constants}"
+mv "${tmp_constants}" "${python_constants}"
+
 echo "Updated ${debian_changelog} to ${debian_version}"
 echo "Updated ${aur_pkgbuild} to ${version}"
+echo "Updated ${python_constants} to ${version}"
