@@ -162,8 +162,8 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 
 ### Interface Controls
 - ☰ (menu) - Toggle visibility of other interface controls
-- + - Increase opacity
-- - - Decrease opacity
+- `+ -` Increase opacity
+- `- -` Decrease opacity
 - **Background dropdown** - Change the keyboard background color
 
 ## Configuration
