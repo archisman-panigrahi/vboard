@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Timing: each screenshot remains visible for 0.6s.
-DISPLAY_DUR=0.6
-# Crossfade overlap between consecutive screenshots.
-FADE_DUR=0.24
+# Timing: each screenshot remains visible for 0.8s.
+DISPLAY_DUR=0.8
+TARGET_WIDTH=1280
+TARGET_HEIGHT=334
+OUTPUT_FPS=1.25
+PALETTE_COLORS=256
 
 mapfile -t frames < <(find . -maxdepth 1 -type f -name 'Screenshot_*.png' -printf '%f\n' | sort)
 
@@ -15,26 +17,17 @@ fi
 
 inputs=()
 filter=""
+concat_inputs=""
 for i in "${!frames[@]}"; do
   inputs+=( -loop 1 -t "$DISPLAY_DUR" -i "${frames[$i]}" )
-  filter+="[$i:v]scale=960:-1:flags=lanczos,format=rgba,setsar=1[v$i];"
+  filter+="[$i:v]scale=$TARGET_WIDTH:$TARGET_HEIGHT:force_original_aspect_ratio=decrease:flags=lanczos,pad=$TARGET_WIDTH:$TARGET_HEIGHT:(ow-iw)/2:(oh-ih)/2:color=black@0,format=rgba,setsar=1[v$i];"
+  concat_inputs+="[v$i]"
 done
 
-# Chain fade transitions: [v0][v1] -> [x1], then [x1][v2] -> [x2], ...
-for ((i=1; i<${#frames[@]}; i++)); do
-  offset=$(awk -v i="$i" -v d="$DISPLAY_DUR" -v f="$FADE_DUR" 'BEGIN { printf "%.6f", i*(d-f) }')
-  if [[ $i -eq 1 ]]; then
-    filter+="[v0][v1]xfade=transition=fade:duration=$FADE_DUR:offset=$offset[x1];"
-  else
-    prev=$((i-1))
-    filter+="[x$prev][v$i]xfade=transition=fade:duration=$FADE_DUR:offset=$offset[x$i];"
-  fi
-done
-
-last=$(( ${#frames[@]} - 1 ))
+filter+="${concat_inputs}concat=n=${#frames[@]}:v=1:a=0[video];"
 
 ffmpeg -y "${inputs[@]}" \
-  -filter_complex "$filter[x$last]fps=10,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5" \
+  -filter_complex "$filter[video]fps=$OUTPUT_FPS,split[s0][s1];[s0]palettegen=max_colors=$PALETTE_COLORS[p];[s1][p]paletteuse=dither=sierra2_4a" \
   -loop 0 stitched.gif
 
-echo "Created stitched.gif from ${#frames[@]} screenshots with smooth fades."
+echo "Created stitched.gif from ${#frames[@]} screenshots without transitions."

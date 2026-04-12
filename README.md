@@ -3,6 +3,8 @@
 
 *Works with both GNOME and KDE Plasma*.
 
+<img src="screenshots/Screenshot_0_droid.png" width="600">
+
 <img src="screenshots/stitched.gif" width="600">
 
 ## Overview
