@@ -573,6 +573,11 @@ class VirtualKeyboard(Gtk.Window):
         if "GNOME" in DESKTOP_ENV:
             gnome_specific = "background-image: none;"
         theme_opacity = max(0.0, min(1.0, float(self.opacity)))
+        command_modifier_rgb = (
+            (0, 0, 0)
+            if self.style_variant == "classic" and self.bg_color == "255,0,0"
+            else (194, 40, 40)
+        )
 
         def rgba(rgb_values, alpha_scale=1.0):
             red, green, blue = rgb_values
@@ -719,6 +724,22 @@ class VirtualKeyboard(Gtk.Window):
                 {gnome_specific};
             }}
 
+            #vboard-main #grid button.active-command-modifier {{
+                border: 1px solid {rgba(command_modifier_rgb, 1.0)};
+                color: {rgba((247, 248, 251), 1.0)};
+                background-color: {rgba(command_modifier_rgb, 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba(command_modifier_rgb, 0.92)},
+                    {rgba(command_modifier_rgb, 0.72)}
+                );
+                {gnome_specific};
+            }}
+
+            #vboard-main #grid button.active-command-modifier label {{
+                color: {rgba((247, 248, 251), 1.0)};
+            }}
+
             #vboard-main #esc-button {{
                 min-width: 60px;
                 min-height: 34px;
@@ -862,6 +883,18 @@ class VirtualKeyboard(Gtk.Window):
                 {gnome_specific}
             }}
 
+            #vboard-main #grid button.active-command-modifier {{
+                border: 1px solid rgb{command_modifier_rgb};
+                color: white;
+                background-color: {rgba(command_modifier_rgb, 1.0)};
+                background-image: none;
+                {gnome_specific}
+            }}
+
+            #vboard-main #grid button.active-command-modifier label {{
+                color: white;
+            }}
+
             #vboard-main #esc-button {{
                 min-width: 60px;
                 border: 1px solid {self.text_color};
@@ -966,10 +999,15 @@ class VirtualKeyboard(Gtk.Window):
         self.modifiers[key_event] = value
         button = self.modifier_buttons[key_event]
         style_context = button.get_style_context()
+        modifier_class = (
+            "active-command-modifier"
+            if key_event.startswith(("Shift", "Ctrl", "Alt"))
+            else "active-modifier"
+        )
+        style_context.remove_class("active-modifier")
+        style_context.remove_class("active-command-modifier")
         if value:
-            style_context.add_class("active-modifier")
-        else:
-            style_context.remove_class("active-modifier")
+            style_context.add_class(modifier_class)
 
     def on_key_button_press_event(self, widget, event, key_event):
         if event.button != 1:
