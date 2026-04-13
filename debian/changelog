@@ -1,3 +1,9 @@
+vboard (2.2.0-1) unstable; urgency=medium
+
+  * gesture typing; show lowercase by default; highlight modifier keys
+
+ -- Archisman Panigrahi <apandada1@gmail.com>  Mon, 13 Apr 2026 00:24:29 -0400
+
 vboard (2.1.0-1) unstable; urgency=medium
 
   * Droid theme like onboard, GNOME XWayland fallback
