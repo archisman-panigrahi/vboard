@@ -81,6 +81,7 @@ class VirtualKeyboard(Gtk.Window):
         self.text_color = "white"
         self.style_variant = "onboard"
         self.gesture_enabled = True
+        self.gesture_visual_feedback_enabled = True
         self.read_settings()
 
         self.modifiers = {mod_key: False for mod_key in MODIFIER_KEYS}
@@ -104,10 +105,12 @@ class VirtualKeyboard(Gtk.Window):
         self.tray_menu = None
         self.tray_toggle_item = None
         self.tray_gesture_item = None
+        self.tray_visual_feedback_item = None
         self.css_provider = Gtk.CssProvider()
         self._css_provider_registered = False
         self._last_suggestion_scale = None
         self._syncing_gesture_menu_item = False
+        self._syncing_visual_feedback_menu_item = False
         self.suggestion_font_size = self.BASE_SUGGESTION_FONT_SIZE
         self.gesture_controller = None
         self.set_titlebar(self.header)
@@ -204,6 +207,8 @@ class VirtualKeyboard(Gtk.Window):
             self.tray_icon = None
             self.tray_menu = None
             self.tray_toggle_item = None
+            self.tray_gesture_item = None
+            self.tray_visual_feedback_item = None
             print(f"Warning: Could not create tray icon ({exc}). Tray disabled.")
 
     def build_tray_menu(self):
@@ -218,6 +223,14 @@ class VirtualKeyboard(Gtk.Window):
         self.tray_gesture_item.set_active(self.gesture_enabled)
         self.tray_gesture_item.connect("toggled", self.on_tray_gesture_toggled)
         tray_menu.append(self.tray_gesture_item)
+
+        self.tray_visual_feedback_item = Gtk.CheckMenuItem(label="Visual Feedback")
+        self.tray_visual_feedback_item.set_active(self.gesture_visual_feedback_enabled)
+        self.tray_visual_feedback_item.set_sensitive(self.gesture_enabled)
+        self.tray_visual_feedback_item.connect(
+            "toggled", self.on_tray_visual_feedback_toggled
+        )
+        tray_menu.append(self.tray_visual_feedback_item)
 
         tray_menu.append(Gtk.SeparatorMenuItem())
 
@@ -267,6 +280,12 @@ class VirtualKeyboard(Gtk.Window):
         else:
             self.disable_gesture_typing()
 
+    def on_tray_visual_feedback_toggled(self, widget):
+        if self._syncing_visual_feedback_menu_item:
+            return
+
+        self.set_gesture_visual_feedback_enabled(widget.get_active())
+
     def sync_gesture_menu_item(self):
         if self.tray_gesture_item is None:
             return
@@ -278,6 +297,32 @@ class VirtualKeyboard(Gtk.Window):
         self.tray_gesture_item.set_active(self.gesture_enabled)
         self._syncing_gesture_menu_item = False
 
+    def sync_visual_feedback_menu_item(self):
+        if self.tray_visual_feedback_item is None:
+            return
+
+        self.tray_visual_feedback_item.set_sensitive(self.gesture_enabled)
+        if (
+            self.tray_visual_feedback_item.get_active()
+            == self.gesture_visual_feedback_enabled
+        ):
+            return
+
+        self._syncing_visual_feedback_menu_item = True
+        self.tray_visual_feedback_item.set_active(
+            self.gesture_visual_feedback_enabled
+        )
+        self._syncing_visual_feedback_menu_item = False
+
+    def set_gesture_visual_feedback_enabled(self, enabled, sync_menu=True):
+        self.gesture_visual_feedback_enabled = bool(enabled)
+        if self.gesture_controller is not None:
+            self.gesture_controller.set_visual_feedback_enabled(
+                self.gesture_visual_feedback_enabled
+            )
+        if sync_menu:
+            self.sync_visual_feedback_menu_item()
+
     def enable_gesture_typing(self, sync_menu=True):
         if self.gesture_controller is None:
             gesture_module = importlib.import_module(f"{__package__}.gesture")
@@ -287,10 +332,14 @@ class VirtualKeyboard(Gtk.Window):
             )
             self.gesture_controller.refresh_layout_cache()
             self.gesture_controller.queue_overlay_draw()
+        self.gesture_controller.set_visual_feedback_enabled(
+            self.gesture_visual_feedback_enabled
+        )
 
         self.gesture_enabled = True
         if sync_menu:
             self.sync_gesture_menu_item()
+            self.sync_visual_feedback_menu_item()
 
     def disable_gesture_typing(self, sync_menu=True):
         had_gesture_commit = (
@@ -309,6 +358,7 @@ class VirtualKeyboard(Gtk.Window):
         sys.modules.pop(f"{__package__}.gesture", None)
         if sync_menu:
             self.sync_gesture_menu_item()
+            self.sync_visual_feedback_menu_item()
 
     def on_tray_about(self, widget):
         about_dialog = Gtk.AboutDialog()
@@ -1162,6 +1212,11 @@ class VirtualKeyboard(Gtk.Window):
                 self.gesture_enabled = self.config.getboolean(
                     "DEFAULT", "gesture_enabled", fallback=True
                 )
+                self.gesture_visual_feedback_enabled = self.config.getboolean(
+                    "DEFAULT",
+                    "gesture_visual_feedback_enabled",
+                    fallback=True,
+                )
                 self.width = self.config.getint("DEFAULT", "width", fallback=0)
                 self.height = self.config.getint("DEFAULT", "height", fallback=0)
                 pos_x_str = self.config.get("DEFAULT", "pos_x", fallback="0")
@@ -1185,6 +1240,9 @@ class VirtualKeyboard(Gtk.Window):
             "text_color": self.text_color,
             "style_variant": self.style_variant,
             "gesture_enabled": str(self.gesture_enabled),
+            "gesture_visual_feedback_enabled": str(
+                self.gesture_visual_feedback_enabled
+            ),
             "width": self.width,
             "height": self.height,
             "pos_x": str(self.pos_x),

@@ -319,6 +319,9 @@ class GestureTypingController:
         self._pending_gesture_points = []
         self.gesture_committed_text = ""
         self.auto_space_pending = False
+        self.visual_feedback_enabled = bool(
+            keyboard.gesture_visual_feedback_enabled
+        )
         self.gesture_overlay = self.build_overlay()
 
     def build_overlay(self):
@@ -353,6 +356,19 @@ class GestureTypingController:
 
     def clear_committed_text(self):
         self.gesture_committed_text = ""
+
+    def set_visual_feedback_enabled(self, enabled):
+        self.visual_feedback_enabled = bool(enabled)
+        if not self.visual_feedback_enabled:
+            self.cancel_gesture_feedback_clear()
+            self.cancel_feedback_draw()
+            self._pending_gesture_points = []
+            self.visible_gesture_points = []
+            self.queue_overlay_draw()
+            return
+
+        if self.active_gesture is not None and self.active_gesture["points"]:
+            self.show_gesture_feedback(self.active_gesture["points"], immediate=True)
 
     def note_non_gesture_key(self):
         self.auto_space_pending = False
@@ -618,6 +634,9 @@ class GestureTypingController:
         return False
 
     def show_gesture_feedback(self, points, immediate=False):
+        if not self.visual_feedback_enabled:
+            return
+
         self._pending_gesture_points = points
         if immediate:
             self.cancel_feedback_draw()
@@ -646,7 +665,7 @@ class GestureTypingController:
         return False
 
     def on_gesture_overlay_draw(self, widget, cr):
-        if not self.visible_gesture_points:
+        if not self.visual_feedback_enabled or not self.visible_gesture_points:
             return False
 
         line_width = max(3.0, self.gesture_key_pitch * 0.12)
