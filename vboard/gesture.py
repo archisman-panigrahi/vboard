@@ -314,6 +314,7 @@ class GestureTypingController:
         self.gesture_key_pitch = 0.0
         self._gesture_feedback_clear_source = None
         self.gesture_committed_text = ""
+        self.auto_space_pending = False
         self.gesture_overlay = self.build_overlay()
 
     def build_overlay(self):
@@ -346,6 +347,9 @@ class GestureTypingController:
 
     def clear_committed_text(self):
         self.gesture_committed_text = ""
+
+    def note_non_gesture_key(self):
+        self.auto_space_pending = False
 
     def handle_key_press(self, widget, event, key_event):
         if key_event_to_gesture_char(key_event) is None:
@@ -524,10 +528,15 @@ class GestureTypingController:
 
         formatted_suggestions = [self.apply_word_case(word) for word in suggestions]
         committed_text = formatted_suggestions[0]
-        self.keyboard.emit_text(committed_text)
+        text_to_emit = committed_text
+        if self.auto_space_pending:
+            text_to_emit = f" {committed_text}"
+
+        self.keyboard.emit_text(text_to_emit)
         self.keyboard.current_word = committed_text
         self.keyboard.suggestion_override = formatted_suggestions
         self.gesture_committed_text = committed_text
+        self.auto_space_pending = True
         self.keyboard.update_suggestions()
         self.keyboard.reset_modifiers()
         self.schedule_gesture_feedback_clear()

@@ -984,6 +984,8 @@ class VirtualKeyboard(Gtk.Window):
         return True
 
     def emit_key(self, key_event):
+        if self.gesture_controller is not None:
+            self.gesture_controller.note_non_gesture_key()
         self.track_current_word(key_event)
         self.backend.emit_key(key_event, self.modifiers)
         self.reset_modifiers()
@@ -1122,6 +1124,9 @@ class VirtualKeyboard(Gtk.Window):
 
     def character_to_key_event(self, char):
         modifiers = {modifier: False for modifier in MODIFIER_KEYS}
+
+        if char == " ":
+            return "Space", modifiers
 
         if char.isalpha():
             key_event = char.upper()
