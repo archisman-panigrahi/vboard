@@ -1,13 +1,12 @@
 import configparser
+import importlib
 import os
+import sys
 
 from .constants import (
     APP_DISPLAY_NAME,
     COMMAND_MODIFIER_KEYS,
     COLOR_CHOICES,
-    GESTURE_MIN_PATH_DISTANCE_FACTOR,
-    GESTURE_MIN_PATH_KEYS,
-    GESTURE_POINT_SAMPLE_STEP_FACTOR,
     KEY_ROWS,
     KEY_WIDTHS,
     LIGHT_BACKGROUND_COLORS,
@@ -40,7 +39,6 @@ class VirtualKeyboard(Gtk.Window):
     BASE_SUGGESTION_SPACING = 4
     BASE_SUGGESTION_MARGIN = 3
     BASE_SUGGESTION_MARGIN_BOTTOM = 1
-    GESTURE_FEEDBACK_CLEAR_DELAY_MS = 180
 
     def __init__(self, application=None):
         super().__init__(title=APP_DISPLAY_NAME, name="toplevel")
@@ -82,6 +80,7 @@ class VirtualKeyboard(Gtk.Window):
         self.opacity = "0.90"
         self.text_color = "white"
         self.style_variant = "onboard"
+        self.gesture_enabled = True
         self.read_settings()
 
         self.modifiers = {mod_key: False for mod_key in MODIFIER_KEYS}
@@ -100,21 +99,17 @@ class VirtualKeyboard(Gtk.Window):
         self.suggestion_engine = HunspellSuggestionEngine()
         self.suggestion_buttons = []
         self.suggestion_override = None
-        self.gesture_committed_text = ""
         self.color_combobox = Gtk.ComboBoxText()
         self.tray_icon = None
         self.tray_menu = None
         self.tray_toggle_item = None
+        self.tray_gesture_item = None
         self.css_provider = Gtk.CssProvider()
         self._css_provider_registered = False
         self._last_suggestion_scale = None
+        self._syncing_gesture_menu_item = False
         self.suggestion_font_size = self.BASE_SUGGESTION_FONT_SIZE
-        self.active_gesture = None
-        self.visible_gesture_points = []
-        self.gesture_key_centers = {}
-        self.gesture_key_rects = {}
-        self.gesture_key_pitch = 0.0
-        self._gesture_feedback_clear_source = None
+        self.gesture_controller = None
         self.set_titlebar(self.header)
         self.set_name("vboard-main")
         self.set_default_icon_name(self.get_app_icon_name())
@@ -146,6 +141,7 @@ class VirtualKeyboard(Gtk.Window):
         self.create_suggestion_buttons()
 
         grid_overlay = Gtk.Overlay()
+        self.grid_overlay = grid_overlay
         content.pack_start(grid_overlay, True, True, 0)
 
         grid = Gtk.Grid()
@@ -157,27 +153,15 @@ class VirtualKeyboard(Gtk.Window):
         grid.connect("size-allocate", self.on_grid_size_allocate)
         self.grid = grid
         grid_overlay.add(grid)
-
-        gesture_overlay = Gtk.DrawingArea()
-        gesture_overlay.set_halign(Gtk.Align.FILL)
-        gesture_overlay.set_valign(Gtk.Align.FILL)
-        gesture_overlay.set_hexpand(True)
-        gesture_overlay.set_vexpand(True)
-        gesture_overlay.set_sensitive(False)
-        gesture_overlay.set_can_focus(False)
-        if hasattr(gesture_overlay, "set_has_window"):
-            gesture_overlay.set_has_window(False)
-        gesture_overlay.connect("draw", self.on_gesture_overlay_draw)
-        grid_overlay.add_overlay(gesture_overlay)
-        if hasattr(grid_overlay, "set_overlay_pass_through"):
-            grid_overlay.set_overlay_pass_through(gesture_overlay, True)
-        self.gesture_overlay = gesture_overlay
         self.apply_css()
         GLib.idle_add(self.preload_suggestions)
         GLib.idle_add(self.update_suggestion_bar_scale)
 
         for row_index, keys in enumerate(KEY_ROWS):
             self.create_row(grid, row_index, keys)
+
+        if self.gesture_enabled:
+            self.enable_gesture_typing(sync_menu=False)
 
     def get_app_icon_name(self):
         icon_theme = Gtk.IconTheme.get_default()
@@ -228,6 +212,13 @@ class VirtualKeyboard(Gtk.Window):
         self.tray_toggle_item.connect("activate", self.on_tray_toggle)
         tray_menu.append(self.tray_toggle_item)
 
+        self.tray_gesture_item = Gtk.CheckMenuItem(
+            label="Touch Typing (requires app restart)"
+        )
+        self.tray_gesture_item.set_active(self.gesture_enabled)
+        self.tray_gesture_item.connect("toggled", self.on_tray_gesture_toggled)
+        tray_menu.append(self.tray_gesture_item)
+
         tray_menu.append(Gtk.SeparatorMenuItem())
 
         about_item = Gtk.MenuItem(label="About")
@@ -266,6 +257,58 @@ class VirtualKeyboard(Gtk.Window):
 
     def on_tray_toggle(self, widget):
         self.on_tray_activate(None)
+
+    def on_tray_gesture_toggled(self, widget):
+        if self._syncing_gesture_menu_item:
+            return
+
+        if widget.get_active():
+            self.enable_gesture_typing()
+        else:
+            self.disable_gesture_typing()
+
+    def sync_gesture_menu_item(self):
+        if self.tray_gesture_item is None:
+            return
+
+        if self.tray_gesture_item.get_active() == self.gesture_enabled:
+            return
+
+        self._syncing_gesture_menu_item = True
+        self.tray_gesture_item.set_active(self.gesture_enabled)
+        self._syncing_gesture_menu_item = False
+
+    def enable_gesture_typing(self, sync_menu=True):
+        if self.gesture_controller is None:
+            gesture_module = importlib.import_module(f"{__package__}.gesture")
+            self.gesture_controller = gesture_module.GestureTypingController(
+                self,
+                self.grid_overlay,
+            )
+            self.gesture_controller.refresh_layout_cache()
+            self.gesture_controller.queue_overlay_draw()
+
+        self.gesture_enabled = True
+        if sync_menu:
+            self.sync_gesture_menu_item()
+
+    def disable_gesture_typing(self, sync_menu=True):
+        had_gesture_commit = (
+            self.gesture_controller is not None and self.gesture_controller.has_committed_text()
+        )
+
+        if self.gesture_controller is not None:
+            self.gesture_controller.destroy()
+            self.gesture_controller = None
+
+        self.gesture_enabled = False
+        if had_gesture_commit:
+            self.suggestion_override = None
+            self.update_suggestions()
+
+        sys.modules.pop(f"{__package__}.gesture", None)
+        if sync_menu:
+            self.sync_gesture_menu_item()
 
     def on_tray_about(self, widget):
         about_dialog = Gtk.AboutDialog()
@@ -360,47 +403,15 @@ class VirtualKeyboard(Gtk.Window):
         x, y = self.get_position()
         if x > 0 and y > 0:
             self.pos_x, self.pos_y = x, y
-        self.refresh_gesture_layout_cache()
+        if self.gesture_controller is not None:
+            self.gesture_controller.refresh_layout_cache()
         self.update_suggestion_bar_scale()
 
     def on_grid_size_allocate(self, widget, allocation):
-        self.refresh_gesture_layout_cache()
+        if self.gesture_controller is not None:
+            self.gesture_controller.refresh_layout_cache()
+            self.gesture_controller.queue_overlay_draw()
         self.update_suggestion_bar_scale()
-        self.queue_gesture_overlay_draw()
-
-    def refresh_gesture_layout_cache(self):
-        gesture_key_centers = {}
-        gesture_key_rects = {}
-        key_sizes = []
-
-        for key_event, button in self.key_buttons.items():
-            gesture_char = self.key_event_to_gesture_char(key_event)
-            if gesture_char is None:
-                continue
-
-            allocation = button.get_allocation()
-            if allocation.width <= 0 or allocation.height <= 0:
-                continue
-
-            origin_x, origin_y = self.translate_widget_point_to_gesture_overlay(button)
-
-            gesture_key_centers[gesture_char] = (
-                origin_x + (allocation.width / 2.0),
-                origin_y + (allocation.height / 2.0),
-            )
-            gesture_key_rects[gesture_char] = (
-                origin_x,
-                origin_y,
-                allocation.width,
-                allocation.height,
-            )
-            key_sizes.append(min(allocation.width, allocation.height))
-
-        self.gesture_key_centers = gesture_key_centers
-        self.gesture_key_rects = gesture_key_rects
-        self.gesture_key_pitch = (
-            (sum(key_sizes) / len(key_sizes)) if key_sizes else float(self.BASE_KEY_HEIGHT)
-        )
 
     def update_suggestion_bar_scale(self):
         grid_height = self.grid.get_allocated_height() if hasattr(self, "grid") else 0
@@ -890,13 +901,6 @@ class VirtualKeyboard(Gtk.Window):
             grid.attach(button, col, row_index, width, 1)
             col += width
 
-    def key_event_to_gesture_char(self, key_event):
-        if len(key_event) == 1 and key_event.isalpha():
-            return key_event.lower()
-        if key_event in {"-", "'"}:
-            return key_event
-        return None
-
     def update_label(self, show_symbols):
         for pos, (normal_label, shifted_label) in SHIFTED_BUTTON_LABELS:
             if show_symbols:
@@ -933,11 +937,11 @@ class VirtualKeyboard(Gtk.Window):
                 self.update_label(False)
             return False
 
-        if (
-            self.key_event_to_gesture_char(key_event) is not None
-            and not self.has_active_command_modifier()
+        if self.gesture_controller is not None and self.gesture_controller.handle_key_press(
+            widget,
+            event,
+            key_event,
         ):
-            self.begin_gesture(widget, event, key_event)
             return False
 
         self.emit_key(key_event)
@@ -945,19 +949,19 @@ class VirtualKeyboard(Gtk.Window):
         return False
 
     def on_key_button_motion_event(self, widget, event, key_event):
-        if self.active_gesture is None or self.active_gesture["widget"] is not widget:
-            return False
-
-        self.record_gesture_motion(widget, event)
+        if self.gesture_controller is not None:
+            self.gesture_controller.handle_key_motion(widget, event)
         return False
 
     def on_key_button_release_event(self, widget, event, key_event):
         if event.button != 1:
             return False
 
-        if self.active_gesture is not None and self.active_gesture["widget"] is widget:
-            self.record_gesture_motion(widget, event)
-            self.finish_gesture(key_event)
+        if self.gesture_controller is not None and self.gesture_controller.handle_key_release(
+            widget,
+            event,
+            key_event,
+        ):
             return False
 
         self.stop_key_repeat()
@@ -970,127 +974,6 @@ class VirtualKeyboard(Gtk.Window):
         if hasattr(self, "repeat_source"):
             GLib.source_remove(self.repeat_source)
             del self.repeat_source
-
-    def begin_gesture(self, widget, event, key_event):
-        self.cancel_gesture_feedback_clear()
-        self.refresh_gesture_layout_cache()
-        self.active_gesture = {
-            "widget": widget,
-            "points": [],
-            "key_path": [],
-            "total_distance": 0.0,
-        }
-        self.record_gesture_motion(widget, event, fallback_key_event=key_event)
-
-    def record_gesture_motion(self, widget, event, fallback_key_event=None):
-        if self.active_gesture is None:
-            return
-
-        point = self.get_gesture_point(widget, event)
-        if point is None:
-            return
-
-        points = self.active_gesture["points"]
-        min_step = max(2.0, self.gesture_key_pitch * GESTURE_POINT_SAMPLE_STEP_FACTOR)
-        if not points:
-            points.append(point)
-        else:
-            distance = self.distance_between(points[-1], point)
-            self.active_gesture["total_distance"] += distance
-            if distance >= min_step:
-                points.append(point)
-            else:
-                points[-1] = point
-        self.show_gesture_feedback(points)
-
-        gesture_key = self.find_gesture_key_at_point(point)
-        if gesture_key is None and fallback_key_event is not None:
-            gesture_key = self.key_event_to_gesture_char(fallback_key_event)
-        if gesture_key is None:
-            return
-
-        key_path = self.active_gesture["key_path"]
-        if not key_path or key_path[-1] != gesture_key:
-            key_path.append(gesture_key)
-
-    def get_gesture_point(self, widget, event):
-        origin_x, origin_y = self.translate_widget_point_to_gesture_overlay(widget)
-        return (origin_x + event.x, origin_y + event.y)
-
-    def find_gesture_key_at_point(self, point):
-        if not self.gesture_key_centers:
-            return None
-
-        best_key = None
-        best_distance = None
-        tolerance = max(4.0, self.gesture_key_pitch * 0.2)
-
-        for key, rect in self.gesture_key_rects.items():
-            rect_x, rect_y, rect_width, rect_height = rect
-            if (
-                rect_x - tolerance <= point[0] <= rect_x + rect_width + tolerance
-                and rect_y - tolerance <= point[1] <= rect_y + rect_height + tolerance
-            ):
-                distance = self.distance_between(point, self.gesture_key_centers[key])
-                if best_distance is None or distance < best_distance:
-                    best_key = key
-                    best_distance = distance
-
-        if best_key is not None:
-            return best_key
-
-        max_distance = max(8.0, self.gesture_key_pitch * 0.95)
-        for key, center in self.gesture_key_centers.items():
-            distance = self.distance_between(point, center)
-            if distance > max_distance:
-                continue
-            if best_distance is None or distance < best_distance:
-                best_key = key
-                best_distance = distance
-        return best_key
-
-    def finish_gesture(self, fallback_key_event):
-        active_gesture = self.active_gesture
-        self.active_gesture = None
-        self.stop_key_repeat()
-
-        if active_gesture is None:
-            return
-
-        self.show_gesture_feedback(active_gesture["points"])
-        if not self.should_commit_gesture_from_state(active_gesture):
-            self.emit_key(fallback_key_event)
-            self.schedule_gesture_feedback_clear()
-            return
-
-        suggestions = self.suggestion_engine.get_gesture_suggestions(
-            active_gesture["points"],
-            self.gesture_key_centers,
-            self.gesture_key_pitch,
-            observed_route=active_gesture["key_path"],
-            limit=SUGGESTION_LIMIT,
-        )
-        if not suggestions:
-            self.emit_key(fallback_key_event)
-            self.schedule_gesture_feedback_clear()
-            return
-
-        formatted_suggestions = [self.apply_gesture_word_case(word) for word in suggestions]
-        committed_text = formatted_suggestions[0]
-        self.emit_text(committed_text)
-        self.current_word = committed_text
-        self.suggestion_override = formatted_suggestions
-        self.gesture_committed_text = committed_text
-        self.update_suggestions()
-        self.reset_modifiers()
-        self.schedule_gesture_feedback_clear()
-
-    def should_commit_gesture_from_state(self, gesture_state):
-        return (
-            len(gesture_state["key_path"]) >= GESTURE_MIN_PATH_KEYS
-            and gesture_state["total_distance"]
-            >= self.gesture_key_pitch * GESTURE_MIN_PATH_DISTANCE_FACTOR
-        )
 
     def start_repeat(self, key_event):
         self.repeat_source = GLib.timeout_add(100, self.repeat_key, key_event)
@@ -1118,87 +1001,18 @@ class VirtualKeyboard(Gtk.Window):
             if active:
                 self.update_modifier(mod_key, False)
 
-    def apply_gesture_word_case(self, word):
-        if self.modifiers["Shift_L"] or self.modifiers["Shift_R"]:
-            return word[:1].upper() + word[1:]
-        return word
-
     def clear_suggestion_override(self, update=False):
-        if self.suggestion_override is None and not self.gesture_committed_text:
+        has_gesture_commit = (
+            self.gesture_controller is not None and self.gesture_controller.has_committed_text()
+        )
+        if self.suggestion_override is None and not has_gesture_commit:
             return
 
         self.suggestion_override = None
-        self.gesture_committed_text = ""
+        if self.gesture_controller is not None:
+            self.gesture_controller.clear_committed_text()
         if update:
             self.update_suggestions()
-
-    def distance_between(self, first_point, second_point):
-        return (
-            (first_point[0] - second_point[0]) ** 2
-            + (first_point[1] - second_point[1]) ** 2
-        ) ** 0.5
-
-    def translate_widget_point_to_gesture_overlay(self, widget):
-        target = getattr(self, "gesture_overlay", None)
-        if target is not None:
-            translated = widget.translate_coordinates(target, 0, 0)
-            if translated is not None:
-                return translated
-
-        allocation = widget.get_allocation()
-        return (allocation.x, allocation.y)
-
-    def queue_gesture_overlay_draw(self):
-        if hasattr(self, "gesture_overlay"):
-            self.gesture_overlay.queue_draw()
-
-    def cancel_gesture_feedback_clear(self):
-        if self._gesture_feedback_clear_source is None:
-            return
-        GLib.source_remove(self._gesture_feedback_clear_source)
-        self._gesture_feedback_clear_source = None
-
-    def show_gesture_feedback(self, points):
-        self.visible_gesture_points = [tuple(point) for point in points]
-        self.queue_gesture_overlay_draw()
-
-    def schedule_gesture_feedback_clear(self):
-        self.cancel_gesture_feedback_clear()
-        self._gesture_feedback_clear_source = GLib.timeout_add(
-            self.GESTURE_FEEDBACK_CLEAR_DELAY_MS,
-            self.clear_gesture_feedback,
-        )
-
-    def clear_gesture_feedback(self):
-        self._gesture_feedback_clear_source = None
-        self.visible_gesture_points = []
-        self.queue_gesture_overlay_draw()
-        return False
-
-    def on_gesture_overlay_draw(self, widget, cr):
-        if not self.visible_gesture_points:
-            return False
-
-        line_width = max(4.0, self.gesture_key_pitch * 0.16)
-        start_x, start_y = self.visible_gesture_points[0]
-        cr.move_to(start_x, start_y)
-        for point_x, point_y in self.visible_gesture_points[1:]:
-            cr.line_to(point_x, point_y)
-
-        cr.set_source_rgba(0.16, 0.74, 0.86, 0.24)
-        cr.set_line_width(line_width + 4.0)
-        cr.stroke_preserve()
-
-        cr.set_source_rgba(0.46, 0.92, 1.0, 0.78)
-        cr.set_line_width(line_width)
-        cr.stroke()
-
-        end_x, end_y = self.visible_gesture_points[-1]
-        radius = max(5.0, self.gesture_key_pitch * 0.14)
-        cr.arc(end_x, end_y, radius, 0.0, 6.283185307179586)
-        cr.set_source_rgba(0.7, 0.97, 1.0, 0.92)
-        cr.fill()
-        return False
 
     def track_current_word(self, key_event):
         self.clear_suggestion_override(update=False)
@@ -1278,8 +1092,12 @@ class VirtualKeyboard(Gtk.Window):
         if not suggestion:
             return
 
-        if self.suggestion_override is not None and self.gesture_committed_text:
-            self.replace_gesture_committed_word(suggestion)
+        if (
+            self.gesture_controller is not None
+            and self.suggestion_override is not None
+            and self.gesture_controller.has_committed_text()
+        ):
+            self.gesture_controller.replace_committed_word(suggestion)
             return
 
         if not self.current_word:
@@ -1300,26 +1118,6 @@ class VirtualKeyboard(Gtk.Window):
             self.backend.emit_key(key_event, modifiers)
 
         self.current_word = suggestion
-        self.update_suggestions()
-
-    def replace_gesture_committed_word(self, suggestion):
-        suggestion = suggestion.strip()
-        if not suggestion or not self.gesture_committed_text:
-            return
-
-        if suggestion == self.gesture_committed_text:
-            return
-
-        empty_modifiers = {modifier: False for modifier in MODIFIER_KEYS}
-        for _ in self.gesture_committed_text:
-            self.backend.emit_key("Backspace", empty_modifiers)
-
-        self.emit_text(suggestion)
-        self.current_word = suggestion
-        self.gesture_committed_text = suggestion
-        if self.suggestion_override is not None:
-            remaining = [word for word in self.suggestion_override if word != suggestion]
-            self.suggestion_override = [suggestion] + remaining
         self.update_suggestions()
 
     def character_to_key_event(self, char):
@@ -1356,6 +1154,9 @@ class VirtualKeyboard(Gtk.Window):
                 self.style_variant = self.config.get(
                     "DEFAULT", "style_variant", fallback="classic"
                 )
+                self.gesture_enabled = self.config.getboolean(
+                    "DEFAULT", "gesture_enabled", fallback=True
+                )
                 self.width = self.config.getint("DEFAULT", "width", fallback=0)
                 self.height = self.config.getint("DEFAULT", "height", fallback=0)
                 pos_x_str = self.config.get("DEFAULT", "pos_x", fallback="0")
@@ -1378,6 +1179,7 @@ class VirtualKeyboard(Gtk.Window):
             "opacity": self.opacity,
             "text_color": self.text_color,
             "style_variant": self.style_variant,
+            "gesture_enabled": str(self.gesture_enabled),
             "width": self.width,
             "height": self.height,
             "pos_x": str(self.pos_x),
