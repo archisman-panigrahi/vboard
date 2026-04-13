@@ -10,6 +10,8 @@ GESTURE_MIN_PATH_KEYS = 3
 GESTURE_MIN_PATH_DISTANCE_FACTOR = 0.9
 GESTURE_POINT_SAMPLE_STEP_FACTOR = 0.12
 GESTURE_FEEDBACK_CLEAR_DELAY_MS = 180
+GESTURE_FEEDBACK_FRAME_DELAY_MS = 33
+GESTURE_FEEDBACK_SAMPLE_DISTANCE_FACTOR = 0.3
 
 
 def key_event_to_gesture_char(key_event):
@@ -313,6 +315,8 @@ class GestureTypingController:
         self.gesture_key_rects = {}
         self.gesture_key_pitch = 0.0
         self._gesture_feedback_clear_source = None
+        self._feedback_draw_source = None
+        self._pending_gesture_points = []
         self.gesture_committed_text = ""
         self.auto_space_pending = False
         self.gesture_overlay = self.build_overlay()
@@ -335,8 +339,10 @@ class GestureTypingController:
 
     def destroy(self):
         self.cancel_gesture_feedback_clear()
+        self.cancel_feedback_draw()
         self.active_gesture = None
         self.clear_committed_text()
+        self._pending_gesture_points = []
         self.visible_gesture_points = []
         if self.gesture_overlay is not None:
             self.gesture_overlay.destroy()
@@ -508,7 +514,7 @@ class GestureTypingController:
         if active_gesture is None:
             return
 
-        self.show_gesture_feedback(active_gesture["points"])
+        self.show_gesture_feedback(active_gesture["points"], immediate=True)
         if not self.should_commit_gesture_from_state(active_gesture):
             self.keyboard.emit_key(fallback_key_event)
             self.schedule_gesture_feedback_clear()
@@ -582,9 +588,47 @@ class GestureTypingController:
         GLib.source_remove(self._gesture_feedback_clear_source)
         self._gesture_feedback_clear_source = None
 
-    def show_gesture_feedback(self, points):
-        self.visible_gesture_points = [tuple(point) for point in points]
+    def cancel_feedback_draw(self):
+        if self._feedback_draw_source is None:
+            return
+        GLib.source_remove(self._feedback_draw_source)
+        self._feedback_draw_source = None
+
+    def build_feedback_points(self, points):
+        if not points:
+            return []
+
+        feedback_points = [tuple(points[0])]
+        min_distance = max(6.0, self.gesture_key_pitch * GESTURE_FEEDBACK_SAMPLE_DISTANCE_FACTOR)
+        min_distance_sq = min_distance * min_distance
+        for point in points[1:]:
+            point = tuple(point)
+            if self.distance_squared(feedback_points[-1], point) >= min_distance_sq:
+                feedback_points.append(point)
+
+        last_point = tuple(points[-1])
+        if feedback_points[-1] != last_point:
+            feedback_points.append(last_point)
+        return feedback_points
+
+    def flush_feedback_draw(self):
+        self._feedback_draw_source = None
+        self.visible_gesture_points = self.build_feedback_points(self._pending_gesture_points)
         self.queue_overlay_draw()
+        return False
+
+    def show_gesture_feedback(self, points, immediate=False):
+        self._pending_gesture_points = points
+        if immediate:
+            self.cancel_feedback_draw()
+            self.flush_feedback_draw()
+            return
+
+        if self._feedback_draw_source is None:
+            self._feedback_draw_source = GLib.timeout_add(
+                GESTURE_FEEDBACK_FRAME_DELAY_MS,
+                self.flush_feedback_draw,
+            )
 
     def schedule_gesture_feedback_clear(self):
         self.cancel_gesture_feedback_clear()
@@ -595,6 +639,8 @@ class GestureTypingController:
 
     def clear_gesture_feedback(self):
         self._gesture_feedback_clear_source = None
+        self.cancel_feedback_draw()
+        self._pending_gesture_points = []
         self.visible_gesture_points = []
         self.queue_overlay_draw()
         return False
@@ -603,25 +649,17 @@ class GestureTypingController:
         if not self.visible_gesture_points:
             return False
 
-        line_width = max(4.0, self.gesture_key_pitch * 0.16)
+        line_width = max(3.0, self.gesture_key_pitch * 0.12)
         start_x, start_y = self.visible_gesture_points[0]
+        cr.set_line_cap(1)
+        cr.set_line_join(1)
         cr.move_to(start_x, start_y)
         for point_x, point_y in self.visible_gesture_points[1:]:
             cr.line_to(point_x, point_y)
 
-        cr.set_source_rgba(0.16, 0.74, 0.86, 0.24)
-        cr.set_line_width(line_width + 4.0)
-        cr.stroke_preserve()
-
-        cr.set_source_rgba(0.46, 0.92, 1.0, 0.78)
+        cr.set_source_rgba(0.46, 0.92, 1.0, 0.72)
         cr.set_line_width(line_width)
         cr.stroke()
-
-        end_x, end_y = self.visible_gesture_points[-1]
-        radius = max(5.0, self.gesture_key_pitch * 0.14)
-        cr.arc(end_x, end_y, radius, 0.0, 6.283185307179586)
-        cr.set_source_rgba(0.7, 0.97, 1.0, 0.92)
-        cr.fill()
         return False
 
     def distance_between(self, first_point, second_point):
@@ -629,3 +667,8 @@ class GestureTypingController:
             (first_point[0] - second_point[0]) ** 2
             + (first_point[1] - second_point[1]) ** 2
         ) ** 0.5
+
+    def distance_squared(self, first_point, second_point):
+        return ((first_point[0] - second_point[0]) ** 2) + (
+            (first_point[1] - second_point[1]) ** 2
+        )
