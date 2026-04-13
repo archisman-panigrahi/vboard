@@ -12,6 +12,7 @@ license=('GPL3')
 install="${pkgname}.install"
 depends=(
   'python'
+  'python-cairo'
   'python-gobject'
   'gtk3'
   'python-uinput'
