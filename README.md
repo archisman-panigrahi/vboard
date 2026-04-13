@@ -40,6 +40,7 @@ Download the latest `.deb` from the [GitHub Releases](https://github.com/archism
 ```bash
 sudo apt install ./vboard_*.deb
 ```
+**DO NOT** use `dpkg`. Please use `apt`. Otherwise, it will not work.
 
 The package post-install step sets up `uinput` and installs the `udev` rule needed for desktop-session access to `/dev/uinput`.
 
