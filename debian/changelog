@@ -1,6 +1,6 @@
 vboard (2.1.0-1) unstable; urgency=medium
 
-  * Droid theme like onboard
+  * Droid theme like onboard, GNOME XWayland fallback
 
  -- Archisman Panigrahi <apandada1@gmail.com>  Sun, 12 Apr 2026 08:52:57 -0400
 
