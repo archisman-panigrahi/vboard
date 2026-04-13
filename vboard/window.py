@@ -141,6 +141,31 @@ class VirtualKeyboard(Gtk.Window):
         grid.connect("size-allocate", self.on_grid_size_allocate)
         self.grid = grid
         content.pack_start(grid, True, True, 0)
+
+        resize_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        resize_bar.set_name("resize-bar")
+        resize_bar.set_halign(Gtk.Align.END)
+        resize_bar.set_margin_end(6)
+        resize_bar.set_margin_bottom(4)
+        content.pack_start(resize_bar, False, False, 0)
+
+        self.resize_handle = Gtk.EventBox()
+        self.resize_handle.set_name("resize-handle")
+        self.resize_handle.set_visible_window(True)
+        self.resize_handle.set_tooltip_text("Drag to resize")
+        self.resize_handle.set_events(
+            Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.TOUCH_MASK
+        )
+        self.resize_handle.connect(
+            "button-press-event", self.on_resize_handle_button_press
+        )
+        self.resize_handle.connect("touch-event", self.on_resize_handle_touch)
+
+        resize_label = Gtk.Label(label="⇲")
+        resize_label.set_name("resize-handle-label")
+        self.resize_handle.add(resize_label)
+        resize_bar.pack_end(self.resize_handle, False, False, 0)
+
         self.apply_css()
         GLib.idle_add(self.preload_suggestions)
         GLib.idle_add(self.update_suggestion_bar_scale)
@@ -370,6 +395,41 @@ class VirtualKeyboard(Gtk.Window):
 
         self.apply_css()
         return False
+
+    def start_window_resize(self, device, button, root_x, root_y, timestamp):
+        gdk_window = self.get_window()
+        if gdk_window is None:
+            return False
+
+        edge = Gdk.WindowEdge.SOUTH_EAST
+        root_x = int(round(root_x))
+        root_y = int(round(root_y))
+
+        if device is not None:
+            gdk_window.begin_resize_drag_for_device(
+                edge, device, button, root_x, root_y, timestamp
+            )
+        else:
+            self.begin_resize_drag(edge, button, root_x, root_y, timestamp)
+        return True
+
+    def on_resize_handle_button_press(self, widget, event):
+        button = event.button if event.button > 0 else 1
+        return self.start_window_resize(
+            event.get_device(), button, event.x_root, event.y_root, event.time
+        )
+
+    def on_resize_handle_touch(self, widget, event):
+        if event.type != Gdk.EventType.TOUCH_BEGIN:
+            return False
+
+        has_root_coords, root_x, root_y = event.get_root_coords()
+        if not has_root_coords:
+            return False
+
+        return self.start_window_resize(
+            event.get_device(), 0, root_x, root_y, event.get_time()
+        )
 
     def on_map_keep_above(self, widget, event):
         self.request_keep_above()
@@ -669,6 +729,36 @@ class VirtualKeyboard(Gtk.Window):
                     {rgba((38, 49, 68), 1.0)}
                 );
             }}
+
+            #vboard-main #resize-handle {{
+                min-width: 44px;
+                min-height: 32px;
+                border: 1px solid {rgba((15, 22, 34), 1.0)};
+                border-radius: 8px;
+                padding: 0px 8px;
+                background-color: {rgba((35, 45, 61), 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((61, 74, 96), 1.0)},
+                    {rgba((35, 45, 61), 1.0)}
+                );
+                box-shadow: inset 0 1px {rgba((255, 255, 255), 0.08)};
+            }}
+
+            #vboard-main #resize-handle:hover {{
+                border: 1px solid {rgba((130, 148, 178), 1.0)};
+                background-image: linear-gradient(
+                    to bottom,
+                    {rgba((76, 89, 114), 1.0)},
+                    {rgba((42, 53, 73), 1.0)}
+                );
+            }}
+
+            #vboard-main #resize-handle label {{
+                color: {rgba((224, 231, 242), 1.0)};
+                font-size: 20px;
+                font-weight: 600;
+            }}
             """
         else:
             css = f"""
@@ -778,6 +868,25 @@ class VirtualKeyboard(Gtk.Window):
 
             #vboard-main #suggestion-button.has-suggestion:hover {{
                 border: 1px solid #00CACB;
+            }}
+
+            #vboard-main #resize-handle {{
+                min-width: 44px;
+                min-height: 32px;
+                border: 1px solid {self.text_color};
+                border-radius: 8px;
+                padding: 0px 8px;
+                background-image: none;
+            }}
+
+            #vboard-main #resize-handle:hover {{
+                border: 1px solid #00CACB;
+            }}
+
+            #vboard-main #resize-handle label {{
+                color: {self.text_color};
+                font-size: 20px;
+                font-weight: 600;
             }}
             """
 
