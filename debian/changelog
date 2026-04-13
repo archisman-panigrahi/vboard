@@ -1,3 +1,9 @@
+vboard (2.2.1-1) unstable; urgency=medium
+
+  * Ship gesture.py with meson
+
+ -- Archisman Panigrahi <apandada1@gmail.com>  Mon, 13 Apr 2026 08:10:06 -0400
+
 vboard (2.2.0-1) unstable; urgency=medium
 
   * gesture typing; show lowercase by default; highlight modifier keys

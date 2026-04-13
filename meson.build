@@ -32,6 +32,7 @@ install_data(
     'vboard/app.py',
     'vboard/constants.py',
     'vboard/environment.py',
+    'vboard/gesture.py',
     'vboard/gtk.py',
     'vboard/input_backends.py',
     'vboard/suggestions.py',
