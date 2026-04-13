@@ -120,6 +120,7 @@ main {
   justify-content: space-between;
   gap: 1rem;
   padding: 1.25rem 0 0;
+  text-decoration: underline;
 }
 
 .brand {
@@ -146,6 +147,7 @@ main {
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
+  text-decoration: underline;
 }
 
 .nav-links a:not(.button) {
