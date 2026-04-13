@@ -44,8 +44,6 @@ jobs:
           name: vboard-deb-${{ github.sha }}
           path: |
             artifacts/*.deb
-            artifacts/*.buildinfo
-            artifacts/*.changes
           if-no-files-found: error
 
       - name: Upload Debian package to GitHub release
