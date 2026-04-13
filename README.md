@@ -1,14 +1,14 @@
 # <img src="io.github.archisman-panigrahi.vboard.svg" align="left" width="100" height="100">  <br> vboard
-*A virtual keyboard for GNU/Linux with Wayland support and Ctrl, Alt, Tab and Super (Meta/Win) keys.*
+*A virtual keyboard for GNU/Linux with Wayland support on KDE Plasma, plus GNOME support via Xwayland, and Ctrl, Alt, Tab and Super (Meta/Win) keys.*
 
-*Works with both GNOME and KDE Plasma*.
+*Wayland-compatible on KDE Plasma; also works on GNOME via Xwayland*.
 
 <img src="screenshots/Screenshot_0_droid.png" width="600">
 
 <img src="screenshots/stitched.gif" width="600">
 
 ## Overview
-vboard is a lightweight, customizable virtual keyboard designed for Linux systems with Wayland support. It provides a full on-screen keyboard with modifier keys such as Ctrl, Alt, and Super (Meta/Win), which makes it especially useful for:
+vboard is a lightweight, customizable virtual keyboard designed for Linux desktop systems. It runs as a Wayland-compatible on-screen keyboard on KDE Plasma, and also works on GNOME by falling back to Xwayland. It provides a full on-screen keyboard with modifier keys such as Ctrl, Alt, and Super (Meta/Win), which makes it especially useful for:
 
 - Touchscreen devices without physical keyboards
 - Systems with malfunctioning physical keyboards
@@ -21,10 +21,10 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 - **Customizable appearance**: Change background color and opacity
 - **Persistent settings**: Configuration is saved between sessions
 - **Modifier key support**: Provide Ctrl, Alt, Tab and Super (Meta/Win) keys
+- **Desktop compatibility**: Native Wayland-friendly behavior on KDE Plasma, with GNOME support via Xwayland fallback
 - **Hold for repetitive clicks**: Keep holding the mouse button to trigger repeated clicks
 - **Word suggestions**: Offers completions from an installed Hunspell dictionary while you type with vboard
 - **Compact interface**: Headerbar with minimal controls to save screen space
-- **Always-on-top**: Stays above other windows for easy access
 - **Tray icon support**: Keeps vboard running in the background and you can quickly reopen it when needed
 - **uinput input backend**: Injects keys through Linux `uinput`
 
