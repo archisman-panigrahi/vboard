@@ -24,9 +24,12 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 - **Desktop compatibility**: Native Wayland-friendly behavior on KDE Plasma, with GNOME support via Xwayland fallback
 - **Hold for repetitive clicks**: Keep holding the mouse button to trigger repeated clicks
 - **Word suggestions**: Offers completions from an installed Hunspell dictionary while you type with vboard
+- **Gesture typing**: Swipe across letter keys and vboard will decode the path into a word
 - **Compact interface**: Headerbar with minimal controls to save screen space
 - **Tray icon support**: Keeps vboard running in the background and you can quickly reopen it when needed
 - **uinput input backend**: Injects keys through Linux `uinput`
+
+Implementation notes for gesture typing are documented in [GESTURE_TYPING.md](./GESTURE_TYPING.md).
 
 ## Installation
 
@@ -159,16 +162,19 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 - Arrow keys
 - Modifier keys (Shift, Ctrl, Alt, Super)
 - Header-bar suggestions that appear while typing words through vboard when a system Hunspell dictionary is available
+- Experimental swipe typing on alphabetic keys: drag across the intended letters and release to insert the best matching dictionary word
 
 ### Interface Controls
 - ☰ (menu) - Toggle visibility of other interface controls
 - `+ -` Increase opacity
 - `- -` Decrease opacity
 - **Background dropdown** - Change the keyboard background color
+- **Tray menu gesture toggle** - Enable or disable gesture typing; it is on by default
 
 ## Configuration
 vboard saves its settings to `~/.config/vboard/settings.conf`. This configuration file stores:
 - Background color
+- Gesture typing enabled/disabled state
 - Opacity level
 - Text color
 
