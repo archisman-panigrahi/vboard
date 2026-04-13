@@ -12,7 +12,6 @@ from .constants import (
     LIGHT_BACKGROUND_COLORS,
     MODIFIER_KEYS,
     ONBOARD_BACKGROUND_PRESET,
-    SHIFTED_BUTTON_LABELS,
     SHIFTED_CHAR_TO_KEY_EVENT,
     SHIFTED_KEY_MAP,
     SUGGESTION_LIMIT,
@@ -95,7 +94,6 @@ class VirtualKeyboard(Gtk.Window):
         self.buttons = []
         self.key_buttons = {}
         self.modifier_buttons = {}
-        self.row_buttons = []
         self.current_word = ""
         self.suggestion_engine = HunspellSuggestionEngine()
         self.suggestion_buttons = []
@@ -929,10 +927,7 @@ class VirtualKeyboard(Gtk.Window):
         col = 0
 
         for key_label in keys:
-            if key_label in MODIFIER_KEYS:
-                button = Gtk.Button(label=key_label[:-2])
-            else:
-                button = Gtk.Button(label=key_label)
+            button = Gtk.Button(label=self.get_button_label(key_label))
             button.add_events(
                 Gdk.EventMask.BUTTON_PRESS_MASK
                 | Gdk.EventMask.BUTTON_RELEASE_MASK
@@ -941,7 +936,6 @@ class VirtualKeyboard(Gtk.Window):
             button.connect("button-press-event", self.on_key_button_press_event, key_label)
             button.connect("motion-notify-event", self.on_key_button_motion_event, key_label)
             button.connect("button-release-event", self.on_key_button_release_event, key_label)
-            self.row_buttons.append(button)
             self.key_buttons[key_label] = button
             if key_label in self.modifiers:
                 self.modifier_buttons[key_label] = button
@@ -951,12 +945,22 @@ class VirtualKeyboard(Gtk.Window):
             grid.attach(button, col, row_index, width, 1)
             col += width
 
-    def update_label(self, show_symbols):
-        for pos, (normal_label, shifted_label) in SHIFTED_BUTTON_LABELS:
-            if show_symbols:
-                self.row_buttons[pos].set_label(shifted_label)
-            else:
-                self.row_buttons[pos].set_label(normal_label)
+    def get_button_label(self, key_label):
+        if key_label in MODIFIER_KEYS:
+            return key_label[:-2]
+
+        shift_active = self.modifiers["Shift_L"] or self.modifiers["Shift_R"]
+        if len(key_label) == 1 and key_label.isalpha():
+            return key_label if shift_active else key_label.lower()
+
+        if key_label in SHIFTED_KEY_MAP:
+            return SHIFTED_KEY_MAP[key_label] if shift_active else key_label
+
+        return key_label
+
+    def update_key_labels(self):
+        for key_label, button in self.key_buttons.items():
+            button.set_label(self.get_button_label(key_label))
 
     def update_modifier(self, key_event, value):
         self.modifiers[key_event] = value
@@ -981,10 +985,7 @@ class VirtualKeyboard(Gtk.Window):
                 self.update_modifier("Shift_L", False)
                 self.update_modifier("Shift_R", False)
 
-            if self.modifiers["Shift_L"] or self.modifiers["Shift_R"]:
-                self.update_label(True)
-            else:
-                self.update_label(False)
+            self.update_key_labels()
             return False
 
         if self.gesture_controller is not None and self.gesture_controller.handle_key_press(
@@ -1048,10 +1049,10 @@ class VirtualKeyboard(Gtk.Window):
             self.backend.emit_key(key_event, modifiers)
 
     def reset_modifiers(self):
-        self.update_label(False)
         for mod_key, active in self.modifiers.items():
             if active:
                 self.update_modifier(mod_key, False)
+        self.update_key_labels()
 
     def clear_suggestion_override(self, update=False):
         has_gesture_commit = (
