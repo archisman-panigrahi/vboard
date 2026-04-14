@@ -27,7 +27,7 @@ sudo apt update
 
 # Step 2: Install dependencies
 echo -e "${YELLOW}Step 2: Installing dependencies...${NC}"
-PACKAGES="python3-gi gir1.2-gtk-3.0 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build"
+PACKAGES="python3-gi gir1.2-gtk-3.0 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build python3-gi-cairo"
 
 echo "Installing: $PACKAGES"
 sudo apt install -y --no-install-recommends $PACKAGES
