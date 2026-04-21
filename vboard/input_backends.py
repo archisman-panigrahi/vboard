@@ -1,5 +1,4 @@
 from .constants import MODIFIER_KEYS
-from .libei import EISClient
 
 import time
 
@@ -130,6 +129,8 @@ class KWinLibeiBackend(InputBackend):
     name = "kwin-libei"
 
     def __init__(self):
+        from .libei import EISClient
+
         self.key_map = UINPUT_KEY_MAP
         self.modifier_order = list(MODIFIER_KEYS)
         self.client = EISClient()
