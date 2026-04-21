@@ -1,7 +1,5 @@
 from .constants import MODIFIER_KEYS
 
-import time
-
 try:
     import uinput
 except ImportError:
