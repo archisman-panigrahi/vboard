@@ -35,6 +35,7 @@ install_data(
     'vboard/gesture.py',
     'vboard/gtk.py',
     'vboard/input_backends.py',
+    'vboard/libei.py',
     'vboard/suggestions.py',
     'vboard/window.py',
   ),

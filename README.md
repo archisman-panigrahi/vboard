@@ -79,7 +79,7 @@ For Debian/Ubuntu, Fedora, Arch, and other distributions, install the dependenci
 
 **For Debian/Ubuntu-based distributions:**
 ```bash
-sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build --no-install-recommends
+sudo apt install python3-dbus python3-gi python3-gi-cairo gir1.2-gtk-3.0 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build --no-install-recommends
 ```
 Optional for word suggestions:
 ```bash
@@ -88,7 +88,7 @@ sudo apt install hunspell-en-us
 
 **For Fedora-based distributions:**
 ```bash
-sudo dnf install python3-gobject python3-cairo gtk3 python3-uinput libappindicator-gtk3 meson ninja-build
+sudo dnf install python3-dbus python3-gobject python3-cairo gtk3 python3-uinput libappindicator-gtk3 meson ninja-build
 ```
 Optional for word suggestions:
 ```bash
@@ -97,7 +97,7 @@ sudo dnf install hunspell-en-US
 
 **For Arch-based distributions:**
 ```bash
-sudo pacman -S python-gobject gtk3 python-uinput python-cairo libayatana-appindicator meson ninja
+sudo pacman -S python-dbus python-gobject gtk3 python-uinput python-cairo libayatana-appindicator meson ninja
 ```
 Optional for word suggestions:
 ```bash
@@ -111,7 +111,9 @@ git clone https://github.com/archisman-panigrahi/vboard.git
 cd vboard
 ```
 
-### 3. Prepare uinput (required)
+### 3. Prepare uinput (required for non-KDE desktops)
+
+On KDE Plasma, vboard uses the native KWin libei input backend. For other desktops, `uinput` is needed to inject key events.
 
 Run once with sudo before Meson install:
 
