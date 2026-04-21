@@ -18,7 +18,7 @@ from .constants import (
     SUPPORTED_WORD_CHARS,
     VERSION,
 )
-from .environment import DESKTOP_ENV
+from .environment import DESKTOP_ENV, is_kde_environment
 from .gtk import (
     APPINDICATOR_AVAILABLE,
     APPINDICATOR_BACKEND,
@@ -27,7 +27,7 @@ from .gtk import (
     GLib,
     Gtk,
 )
-from .input_backends import NullInputBackend, UInputBackend
+from .input_backends import NullInputBackend, UInputBackend, KWinLibeiBackend
 from .suggestions import HunspellSuggestionEngine
 
 
@@ -117,12 +117,22 @@ class VirtualKeyboard(Gtk.Window):
 
         self.create_settings()
         self.create_tray_icon()
-        try:
-            self.backend = UInputBackend()
-        except Exception as exc:
-            self.backend = NullInputBackend(
-                f"Could not initialize uinput backend ({exc}); key output is disabled"
-            )
+
+        self.backend = None
+        if is_kde_environment():
+            print("Running in KDE Plasma. Trying kwin libei backend.")
+            try:
+                self.backend = KWinLibeiBackend()
+            except Exception as exc:
+                print(f"Could not initialize kwin libei backend ({exc}); fallback to uinput")
+        
+        if self.backend is None:
+            try:
+                self.backend = UInputBackend()
+            except Exception as exc:
+                self.backend = NullInputBackend(
+                    f"Could not initialize uinput backend ({exc}); key output is disabled"
+                )
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.add(content)
@@ -386,6 +396,7 @@ class VirtualKeyboard(Gtk.Window):
     def on_tray_quit(self, widget):
         self.exiting = True
         self.save_settings()
+        self.backend.close()
         self.destroy()
 
     def on_delete_event(self, widget, event):
