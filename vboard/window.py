@@ -18,7 +18,7 @@ from .constants import (
     SUPPORTED_WORD_CHARS,
     VERSION,
 )
-from .environment import DESKTOP_ENV
+from .environment import DESKTOP_ENV, is_kde_environment
 from .gtk import (
     APPINDICATOR_AVAILABLE,
     APPINDICATOR_BACKEND,
@@ -119,7 +119,7 @@ class VirtualKeyboard(Gtk.Window):
         self.create_tray_icon()
 
         self.backend = None
-        if os.getenv("XDG_CURRENT_DESKTOP") == "KDE":
+        if is_kde_environment():
             print("Running in KDE Plasma. Trying kwin libei backend.")
             try:
                 self.backend = KWinLibeiBackend()
