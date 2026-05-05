@@ -75,6 +75,7 @@ class UInputBackend(InputBackend):
             ";": uinput.KEY_SEMICOLON,
             "'": uinput.KEY_APOSTROPHE,
             "`": uinput.KEY_GRAVE,
+            "<": uinput.KEY_LESS,
             "Shift_L": uinput.KEY_LEFTSHIFT,
             "Shift_R": uinput.KEY_RIGHTSHIFT,
             "\\": uinput.KEY_BACKSLASH,
