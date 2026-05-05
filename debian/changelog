@@ -1,3 +1,9 @@
+vboard (2.3.0-1) unstable; urgency=medium
+
+  * Implement initial support for keyboard layouts
+
+ -- Archisman Panigrahi <apandada1@gmail.com>  Mon, 04 May 2026 20:43:04 -0400
+
 vboard (2.2.1-1) unstable; urgency=medium
 
   * Ship gesture.py with meson
