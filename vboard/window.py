@@ -7,15 +7,14 @@ from .constants import (
     APP_DISPLAY_NAME,
     COMMAND_MODIFIER_KEYS,
     COLOR_CHOICES,
-    KEY_ROWS,
+    DEFAULT_KEYBOARD_LAYOUT,
+    KEYBOARD_LAYOUTS,
+    KEY_LAYOUT_CHOICES,
     KEY_WIDTHS,
     LIGHT_BACKGROUND_COLORS,
     MODIFIER_KEYS,
     ONBOARD_BACKGROUND_PRESET,
-    SHIFTED_CHAR_TO_KEY_EVENT,
-    SHIFTED_KEY_MAP,
     SUGGESTION_LIMIT,
-    SUPPORTED_WORD_CHARS,
     VERSION,
 )
 from .environment import DESKTOP_ENV
@@ -81,6 +80,7 @@ class VirtualKeyboard(Gtk.Window):
         self.style_variant = "onboard"
         self.gesture_enabled = True
         self.gesture_visual_feedback_enabled = True
+        self.keyboard_layout = DEFAULT_KEYBOARD_LAYOUT
         self.read_settings()
 
         self.modifiers = {mod_key: False for mod_key in MODIFIER_KEYS}
@@ -104,11 +104,14 @@ class VirtualKeyboard(Gtk.Window):
         self.tray_toggle_item = None
         self.tray_gesture_item = None
         self.tray_visual_feedback_item = None
+        self.tray_layout_items = {}
         self.css_provider = Gtk.CssProvider()
         self._css_provider_registered = False
         self._last_suggestion_scale = None
         self._syncing_gesture_menu_item = False
         self._syncing_visual_feedback_menu_item = False
+        self._syncing_layout_menu_items = False
+        self.layout_character_lookup = {}
         self.suggestion_font_size = self.BASE_SUGGESTION_FONT_SIZE
         self.gesture_controller = None
         self.set_titlebar(self.header)
@@ -158,7 +161,10 @@ class VirtualKeyboard(Gtk.Window):
         GLib.idle_add(self.preload_suggestions)
         GLib.idle_add(self.update_suggestion_bar_scale)
 
-        for row_index, keys in enumerate(KEY_ROWS):
+        self.keyboard_layout = self.normalize_keyboard_layout(self.keyboard_layout)
+        self.refresh_layout_character_lookup()
+
+        for row_index, keys in enumerate(self.get_active_key_rows()):
             self.create_row(grid, row_index, keys)
 
         if self.gesture_enabled:
@@ -207,6 +213,7 @@ class VirtualKeyboard(Gtk.Window):
             self.tray_toggle_item = None
             self.tray_gesture_item = None
             self.tray_visual_feedback_item = None
+            self.tray_layout_items = {}
             print(f"Warning: Could not create tray icon ({exc}). Tray disabled.")
 
     def build_tray_menu(self):
@@ -229,6 +236,28 @@ class VirtualKeyboard(Gtk.Window):
             "toggled", self.on_tray_visual_feedback_toggled
         )
         tray_menu.append(self.tray_visual_feedback_item)
+
+        tray_menu.append(Gtk.SeparatorMenuItem())
+
+        layout_item = Gtk.MenuItem(label="Keyboard Layout")
+        layout_menu = Gtk.Menu()
+        self.tray_layout_items = {}
+        first_layout_item = None
+        for layout_key, layout_label in KEY_LAYOUT_CHOICES:
+            if first_layout_item is None:
+                item = Gtk.RadioMenuItem.new_with_label(None, layout_label)
+                first_layout_item = item
+            else:
+                item = Gtk.RadioMenuItem.new_with_label_from_widget(
+                    first_layout_item,
+                    layout_label,
+                )
+            item.set_active(layout_key == self.keyboard_layout)
+            item.connect("toggled", self.on_tray_layout_toggled, layout_key)
+            layout_menu.append(item)
+            self.tray_layout_items[layout_key] = item
+        layout_item.set_submenu(layout_menu)
+        tray_menu.append(layout_item)
 
         tray_menu.append(Gtk.SeparatorMenuItem())
 
@@ -283,6 +312,97 @@ class VirtualKeyboard(Gtk.Window):
             return
 
         self.set_gesture_visual_feedback_enabled(widget.get_active())
+
+    def on_tray_layout_toggled(self, widget, layout_key):
+        if self._syncing_layout_menu_items or not widget.get_active():
+            return
+
+        self.set_keyboard_layout(layout_key)
+
+    def sync_layout_menu_items(self):
+        if not self.tray_layout_items:
+            return
+
+        self._syncing_layout_menu_items = True
+        for layout_key, item in self.tray_layout_items.items():
+            item.set_active(layout_key == self.keyboard_layout)
+        self._syncing_layout_menu_items = False
+
+    def normalize_keyboard_layout(self, layout_key):
+        if layout_key in KEYBOARD_LAYOUTS:
+            return layout_key
+        return DEFAULT_KEYBOARD_LAYOUT
+
+    def get_layout_config(self):
+        return KEYBOARD_LAYOUTS[self.keyboard_layout]
+
+    def get_active_key_rows(self):
+        return self.get_layout_config()["rows"]
+
+    def get_active_key_labels(self):
+        return self.get_layout_config()["labels"]
+
+    def get_active_shifted_map(self):
+        return self.get_layout_config()["shifted"]
+
+    def refresh_layout_character_lookup(self):
+        lookup = {}
+        key_labels = self.get_active_key_labels()
+        shifted_map = self.get_active_shifted_map()
+
+        for row in self.get_active_key_rows():
+            for key_event in row:
+                if key_event in MODIFIER_KEYS:
+                    continue
+
+                key_label = key_labels.get(key_event, key_event)
+                if len(key_label) == 1:
+                    if key_label.isalpha():
+                        lookup[key_label.lower()] = (key_event, False)
+                        lookup[key_label.upper()] = (key_event, True)
+                    else:
+                        lookup[key_label] = (key_event, False)
+
+                shifted_label = shifted_map.get(key_event)
+                if shifted_label is not None:
+                    lookup[shifted_label] = (key_event, True)
+
+        self.layout_character_lookup = lookup
+
+    def rebuild_keyboard_grid(self):
+        for child in self.grid.get_children():
+            self.grid.remove(child)
+
+        self.key_buttons = {}
+        self.modifier_buttons = {}
+        for row_index, keys in enumerate(self.get_active_key_rows()):
+            self.create_row(self.grid, row_index, keys)
+
+        self.grid.show_all()
+        self.update_suggestion_bar_scale()
+
+    def set_keyboard_layout(self, layout_key, sync_menu=True):
+        normalized_layout = self.normalize_keyboard_layout(layout_key)
+        if normalized_layout == self.keyboard_layout:
+            if sync_menu:
+                self.sync_layout_menu_items()
+            return
+
+        self.keyboard_layout = normalized_layout
+        self.refresh_layout_character_lookup()
+        self.rebuild_keyboard_grid()
+        if self.gesture_controller is not None:
+            self.gesture_controller.refresh_layout_cache()
+            self.gesture_controller.queue_overlay_draw()
+
+        self.clear_suggestion_override(update=False)
+        self.current_word = ""
+        self.update_suggestions()
+
+        if sync_menu:
+            self.sync_layout_menu_items()
+
+        self.save_settings()
 
     def sync_gesture_menu_item(self):
         if self.tray_gesture_item is None:
@@ -466,7 +586,7 @@ class VirtualKeyboard(Gtk.Window):
         if grid_height <= 0:
             return False
 
-        row_height = grid_height / max(1, len(KEY_ROWS))
+        row_height = grid_height / max(1, len(self.get_active_key_rows()))
         scale = row_height / self.BASE_KEY_HEIGHT
         suggestion_height = max(24, int(round(self.BASE_SUGGESTION_HEIGHT * scale)))
         suggestion_font_size = max(10, int(round(self.BASE_SUGGESTION_FONT_SIZE * scale)))
@@ -959,35 +1079,39 @@ class VirtualKeyboard(Gtk.Window):
     def create_row(self, grid, row_index, keys):
         col = 0
 
-        for key_label in keys:
-            button = Gtk.Button(label=self.get_button_label(key_label))
+        for key_event in keys:
+            button = Gtk.Button(label=self.get_button_label(key_event))
             button.add_events(
                 Gdk.EventMask.BUTTON_PRESS_MASK
                 | Gdk.EventMask.BUTTON_RELEASE_MASK
                 | Gdk.EventMask.POINTER_MOTION_MASK
             )
-            button.connect("button-press-event", self.on_key_button_press_event, key_label)
-            button.connect("motion-notify-event", self.on_key_button_motion_event, key_label)
-            button.connect("button-release-event", self.on_key_button_release_event, key_label)
-            self.key_buttons[key_label] = button
-            if key_label in self.modifiers:
-                self.modifier_buttons[key_label] = button
+            button.connect("button-press-event", self.on_key_button_press_event, key_event)
+            button.connect("motion-notify-event", self.on_key_button_motion_event, key_event)
+            button.connect("button-release-event", self.on_key_button_release_event, key_event)
+            self.key_buttons[key_event] = button
+            if key_event in self.modifiers:
+                self.modifier_buttons[key_event] = button
 
-            width = KEY_WIDTHS.get(key_label, 2)
+            width = KEY_WIDTHS.get(key_event, 2)
 
             grid.attach(button, col, row_index, width, 1)
             col += width
 
-    def get_button_label(self, key_label):
-        if key_label in MODIFIER_KEYS:
-            return key_label[:-2]
+    def get_button_label(self, key_event):
+        if key_event in MODIFIER_KEYS:
+            return key_event[:-2]
 
+        key_labels = self.get_active_key_labels()
+        shifted_map = self.get_active_shifted_map()
         shift_active = self.modifiers["Shift_L"] or self.modifiers["Shift_R"]
-        if len(key_label) == 1 and key_label.isalpha():
-            return key_label if shift_active else key_label.lower()
+        key_label = key_labels.get(key_event, key_event)
 
-        if key_label in SHIFTED_KEY_MAP:
-            return SHIFTED_KEY_MAP[key_label] if shift_active else key_label
+        if shift_active and key_event in shifted_map:
+            return shifted_map[key_event]
+
+        if len(key_label) == 1 and key_label.isalpha():
+            return key_label.upper() if shift_active else key_label.lower()
 
         return key_label
 
@@ -1124,7 +1248,7 @@ class VirtualKeyboard(Gtk.Window):
             return
 
         typed_char = self.key_event_to_character(key_event)
-        if typed_char and all(char in SUPPORTED_WORD_CHARS for char in typed_char):
+        if typed_char and all(char.isalpha() or char in {"'", "-"} for char in typed_char):
             self.current_word += typed_char
         else:
             self.current_word = ""
@@ -1136,12 +1260,18 @@ class VirtualKeyboard(Gtk.Window):
 
     def key_event_to_character(self, key_event):
         shift_active = self.modifiers["Shift_L"] or self.modifiers["Shift_R"]
+        key_labels = self.get_active_key_labels()
+        shifted_map = self.get_active_shifted_map()
+        key_label = key_labels.get(key_event, key_event)
 
-        if len(key_event) == 1 and key_event.isalpha():
-            return key_event if shift_active else key_event.lower()
+        if shift_active and key_event in shifted_map:
+            return shifted_map[key_event]
 
-        if key_event in SHIFTED_KEY_MAP:
-            return SHIFTED_KEY_MAP[key_event] if shift_active else key_event
+        if len(key_label) == 1 and key_label.isalpha():
+            return key_label.upper() if shift_active else key_label.lower()
+
+        if len(key_label) == 1:
+            return key_label
 
         return None
 
@@ -1217,19 +1347,12 @@ class VirtualKeyboard(Gtk.Window):
         if char == " ":
             return "Space", modifiers
 
-        if char.isalpha():
-            key_event = char.upper()
-            if char.isupper():
+        key_event_with_shift = self.layout_character_lookup.get(char)
+        if key_event_with_shift is not None:
+            key_event, needs_shift = key_event_with_shift
+            if needs_shift:
                 modifiers["Shift_L"] = True
             return key_event, modifiers
-
-        shifted_key_event = SHIFTED_CHAR_TO_KEY_EVENT.get(char)
-        if shifted_key_event is not None:
-            modifiers["Shift_L"] = True
-            return shifted_key_event, modifiers
-
-        if char in SHIFTED_KEY_MAP:
-            return char, modifiers
 
         return None, modifiers
 
@@ -1255,6 +1378,13 @@ class VirtualKeyboard(Gtk.Window):
                     "DEFAULT",
                     "gesture_visual_feedback_enabled",
                     fallback=True,
+                )
+                self.keyboard_layout = self.normalize_keyboard_layout(
+                    self.config.get(
+                        "DEFAULT",
+                        "keyboard_layout",
+                        fallback=DEFAULT_KEYBOARD_LAYOUT,
+                    )
                 )
                 self.width = self.config.getint("DEFAULT", "width", fallback=0)
                 self.height = self.config.getint("DEFAULT", "height", fallback=0)
@@ -1282,6 +1412,7 @@ class VirtualKeyboard(Gtk.Window):
             "gesture_visual_feedback_enabled": str(
                 self.gesture_visual_feedback_enabled
             ),
+            "keyboard_layout": self.keyboard_layout,
             "width": self.width,
             "height": self.height,
             "pos_x": str(self.pos_x),
