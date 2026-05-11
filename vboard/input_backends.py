@@ -32,6 +32,7 @@ class UInputBackend(InputBackend):
         if uinput is None:
             raise RuntimeError("python-uinput is not installed")
 
+        less_key = self._uinput_key("KEY_LESS", "KEY_102ND", required=False)
         self.key_map = {
             "Esc": uinput.KEY_ESC,
             "1": uinput.KEY_1,
@@ -75,7 +76,6 @@ class UInputBackend(InputBackend):
             ";": uinput.KEY_SEMICOLON,
             "'": uinput.KEY_APOSTROPHE,
             "`": uinput.KEY_GRAVE,
-            "<": uinput.KEY_LESS,
             "Shift_L": uinput.KEY_LEFTSHIFT,
             "Shift_R": uinput.KEY_RIGHTSHIFT,
             "\\": uinput.KEY_BACKSLASH,
@@ -100,8 +100,23 @@ class UInputBackend(InputBackend):
             "Super_L": uinput.KEY_LEFTMETA,
             "Super_R": uinput.KEY_RIGHTMETA,
         }
+        if less_key is not None:
+            self.key_map["<"] = less_key
         self.modifier_order = list(MODIFIER_KEYS)
         self.device = uinput.Device(list(self.key_map.values()))
+
+    @staticmethod
+    def _uinput_key(*names, required=True):
+        for name in names:
+            key = getattr(uinput, name, None)
+            if key is not None:
+                return key
+        if required:
+            raise RuntimeError(
+                "python-uinput is missing required key constant(s): "
+                + ", ".join(names)
+            )
+        return None
 
     def emit_key(self, key_label, modifiers):
         key_event = self.key_map.get(key_label)
