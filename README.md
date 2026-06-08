@@ -48,7 +48,7 @@ The package post-install step sets up `uinput` and installs the `udev` rule need
 
 ### PPA for Ubuntu
 
-You can also use the following PPA in Ubuntu.
+You can also use the following [PPA](https://code.launchpad.net/~apandada1/+archive/ubuntu/vboard) in Ubuntu.
 Run the following commands one by one:
 
 ```bash
