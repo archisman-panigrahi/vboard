@@ -170,6 +170,7 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 - `+ -` Increase opacity
 - `- -` Decrease opacity
 - **Background dropdown** - Change the keyboard background color
+- **Right-click a key** - Send Shift + that key once
 - **Tray menu text prediction toggle** - Show or hide typing suggestions; it is on by default
 - **Tray menu gesture toggle** - Enable or disable gesture typing; it is on by default
 - **Tray menu start minimized toggle** - Start vboard hidden in the system tray

@@ -1197,11 +1197,16 @@ class VirtualKeyboard(Gtk.Window):
             style_context.add_class(modifier_class)
 
     def on_key_button_press_event(self, widget, event, key_event):
-        if event.button != 1:
-            return False
-
         self.stop_key_repeat()
         self.clear_suggestion_override(update=False)
+
+        if event.button == 3:
+            if key_event not in self.modifiers:
+                self.emit_shifted_key(key_event)
+            return True
+
+        if event.button != 1:
+            return False
 
         if key_event in self.modifiers:
             self.update_modifier(key_event, not self.modifiers[key_event])
@@ -1259,11 +1264,17 @@ class VirtualKeyboard(Gtk.Window):
         self.emit_key(key_event)
         return True
 
-    def emit_key(self, key_event):
+    def emit_shifted_key(self, key_event):
+        modifiers = dict(self.modifiers)
+        modifiers["Shift_L"] = True
+        self.emit_key(key_event, modifiers)
+
+    def emit_key(self, key_event, modifiers=None):
+        active_modifiers = self.modifiers if modifiers is None else modifiers
         if self.gesture_controller is not None:
             self.gesture_controller.note_non_gesture_key()
-        self.track_current_word(key_event)
-        self.backend.emit_key(key_event, self.modifiers)
+        self.track_current_word(key_event, active_modifiers)
+        self.backend.emit_key(key_event, active_modifiers)
         self.reset_modifiers()
 
     def emit_text(self, text):
@@ -1292,14 +1303,15 @@ class VirtualKeyboard(Gtk.Window):
         if update:
             self.update_suggestions()
 
-    def track_current_word(self, key_event):
+    def track_current_word(self, key_event, modifiers=None):
+        active_modifiers = self.modifiers if modifiers is None else modifiers
         self.clear_suggestion_override(update=False)
 
         if not self.text_prediction_enabled:
             self.current_word = ""
             return
 
-        if self.has_active_command_modifier():
+        if self.has_active_command_modifier(active_modifiers):
             self.current_word = ""
             self.update_suggestions()
             return
@@ -1314,7 +1326,7 @@ class VirtualKeyboard(Gtk.Window):
             self.update_suggestions()
             return
 
-        typed_char = self.key_event_to_character(key_event)
+        typed_char = self.key_event_to_character(key_event, active_modifiers)
         if typed_char and all(char.isalpha() or char in {"'", "-"} for char in typed_char):
             self.current_word += typed_char
         else:
@@ -1322,11 +1334,13 @@ class VirtualKeyboard(Gtk.Window):
 
         self.update_suggestions()
 
-    def has_active_command_modifier(self):
-        return any(self.modifiers[modifier] for modifier in COMMAND_MODIFIER_KEYS)
+    def has_active_command_modifier(self, modifiers=None):
+        active_modifiers = self.modifiers if modifiers is None else modifiers
+        return any(active_modifiers[modifier] for modifier in COMMAND_MODIFIER_KEYS)
 
-    def key_event_to_character(self, key_event):
-        shift_active = self.modifiers["Shift_L"] or self.modifiers["Shift_R"]
+    def key_event_to_character(self, key_event, modifiers=None):
+        active_modifiers = self.modifiers if modifiers is None else modifiers
+        shift_active = active_modifiers["Shift_L"] or active_modifiers["Shift_R"]
         key_labels = self.get_active_key_labels()
         shifted_map = self.get_active_shifted_map()
         key_label = key_labels.get(key_event, key_event)
