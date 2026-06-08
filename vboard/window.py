@@ -78,6 +78,7 @@ class VirtualKeyboard(Gtk.Window):
         self.opacity = "0.90"
         self.text_color = "white"
         self.style_variant = "onboard"
+        self.text_prediction_enabled = True
         self.gesture_enabled = True
         self.gesture_visual_feedback_enabled = True
         self.keyboard_layout = DEFAULT_KEYBOARD_LAYOUT
@@ -102,6 +103,7 @@ class VirtualKeyboard(Gtk.Window):
         self.tray_icon = None
         self.tray_menu = None
         self.tray_toggle_item = None
+        self.tray_prediction_item = None
         self.tray_gesture_item = None
         self.tray_visual_feedback_item = None
         self.tray_layout_items = {}
@@ -132,8 +134,8 @@ class VirtualKeyboard(Gtk.Window):
 
         self.suggestion_revealer = Gtk.Revealer()
         self.suggestion_revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN)
-        self.suggestion_revealer.set_reveal_child(True)
-        content.pack_start(self.suggestion_revealer, False, False, 0)
+        self.suggestion_revealer.set_no_show_all(True)
+        self.suggestion_revealer.set_reveal_child(self.text_prediction_enabled)
 
         self.suggestion_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         self.suggestion_bar.set_name("suggestion-bar")
@@ -146,6 +148,8 @@ class VirtualKeyboard(Gtk.Window):
 
         grid_overlay = Gtk.Overlay()
         self.grid_overlay = grid_overlay
+        content.pack_start(self.suggestion_revealer, False, False, 0)
+        self.update_suggestion_bar_visibility()
         content.pack_start(grid_overlay, True, True, 0)
 
         grid = Gtk.Grid()
@@ -158,8 +162,9 @@ class VirtualKeyboard(Gtk.Window):
         self.grid = grid
         grid_overlay.add(grid)
         self.apply_css()
-        GLib.idle_add(self.preload_suggestions)
-        GLib.idle_add(self.update_suggestion_bar_scale)
+        if self.text_prediction_enabled:
+            GLib.idle_add(self.preload_suggestions)
+            GLib.idle_add(self.update_suggestion_bar_scale)
 
         self.keyboard_layout = self.normalize_keyboard_layout(self.keyboard_layout)
         self.refresh_layout_character_lookup()
@@ -211,6 +216,7 @@ class VirtualKeyboard(Gtk.Window):
             self.tray_icon = None
             self.tray_menu = None
             self.tray_toggle_item = None
+            self.tray_prediction_item = None
             self.tray_gesture_item = None
             self.tray_visual_feedback_item = None
             self.tray_layout_items = {}
@@ -221,6 +227,11 @@ class VirtualKeyboard(Gtk.Window):
         self.tray_toggle_item = Gtk.MenuItem(label="Hide")
         self.tray_toggle_item.connect("activate", self.on_tray_toggle)
         tray_menu.append(self.tray_toggle_item)
+
+        self.tray_prediction_item = Gtk.CheckMenuItem(label="Text Prediction")
+        self.tray_prediction_item.set_active(self.text_prediction_enabled)
+        self.tray_prediction_item.connect("toggled", self.on_tray_prediction_toggled)
+        tray_menu.append(self.tray_prediction_item)
 
         self.tray_gesture_item = Gtk.CheckMenuItem(
             label="Touch Typing (requires app restart)"
@@ -297,6 +308,9 @@ class VirtualKeyboard(Gtk.Window):
 
     def on_tray_toggle(self, widget):
         self.on_tray_activate(None)
+
+    def on_tray_prediction_toggled(self, widget):
+        self.set_text_prediction_enabled(widget.get_active())
 
     def on_tray_gesture_toggled(self, widget):
         if self._syncing_gesture_menu_item:
@@ -562,6 +576,31 @@ class VirtualKeyboard(Gtk.Window):
             self.suggestion_bar.pack_start(button, True, True, 0)
             self.suggestion_buttons.append(button)
 
+    def update_suggestion_bar_visibility(self):
+        self.suggestion_revealer.set_reveal_child(self.text_prediction_enabled)
+        if self.text_prediction_enabled:
+            self.suggestion_revealer.show()
+            self.suggestion_bar.show_all()
+        else:
+            self.suggestion_revealer.hide()
+        self._last_suggestion_scale = None
+        self.update_suggestion_bar_scale()
+
+    def set_text_prediction_enabled(self, enabled):
+        enabled = bool(enabled)
+        if enabled == self.text_prediction_enabled:
+            return
+
+        self.text_prediction_enabled = enabled
+        self.current_word = ""
+        self.clear_suggestion_override(update=False)
+        self.update_suggestion_bar_visibility()
+        self.update_suggestions()
+        if self.text_prediction_enabled:
+            GLib.idle_add(self.preload_suggestions)
+
+        self.save_settings()
+
     def preload_suggestions(self):
         self.suggestion_engine.ensure_loaded()
         return False
@@ -582,6 +621,9 @@ class VirtualKeyboard(Gtk.Window):
         self.update_suggestion_bar_scale()
 
     def update_suggestion_bar_scale(self):
+        if not self.text_prediction_enabled:
+            return False
+
         grid_height = self.grid.get_allocated_height() if hasattr(self, "grid") else 0
         if grid_height <= 0:
             return False
@@ -1232,6 +1274,10 @@ class VirtualKeyboard(Gtk.Window):
     def track_current_word(self, key_event):
         self.clear_suggestion_override(update=False)
 
+        if not self.text_prediction_enabled:
+            self.current_word = ""
+            return
+
         if self.has_active_command_modifier():
             self.current_word = ""
             self.update_suggestions()
@@ -1276,7 +1322,9 @@ class VirtualKeyboard(Gtk.Window):
         return None
 
     def update_suggestions(self):
-        if self.suggestion_override is not None:
+        if not self.text_prediction_enabled:
+            suggestions = []
+        elif self.suggestion_override is not None:
             suggestions = self.suggestion_override
         else:
             suggestions = self.suggestion_engine.get_suggestions(
@@ -1299,7 +1347,7 @@ class VirtualKeyboard(Gtk.Window):
                 style_context.remove_class("has-suggestion")
             button.show()
 
-        self.suggestion_revealer.set_reveal_child(True)
+        self.suggestion_revealer.set_reveal_child(self.text_prediction_enabled)
 
     def apply_suggestion_case(self, suggestion):
         if self.current_word.isupper():
@@ -1379,6 +1427,11 @@ class VirtualKeyboard(Gtk.Window):
                     "gesture_visual_feedback_enabled",
                     fallback=True,
                 )
+                self.text_prediction_enabled = self.config.getboolean(
+                    "DEFAULT",
+                    "text_prediction_enabled",
+                    fallback=True,
+                )
                 self.keyboard_layout = self.normalize_keyboard_layout(
                     self.config.get(
                         "DEFAULT",
@@ -1408,6 +1461,7 @@ class VirtualKeyboard(Gtk.Window):
             "opacity": self.opacity,
             "text_color": self.text_color,
             "style_variant": self.style_variant,
+            "text_prediction_enabled": str(self.text_prediction_enabled),
             "gesture_enabled": str(self.gesture_enabled),
             "gesture_visual_feedback_enabled": str(
                 self.gesture_visual_feedback_enabled
