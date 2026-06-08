@@ -172,12 +172,14 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 - **Background dropdown** - Change the keyboard background color
 - **Tray menu text prediction toggle** - Show or hide typing suggestions; it is on by default
 - **Tray menu gesture toggle** - Enable or disable gesture typing; it is on by default
+- **Tray menu start minimized toggle** - Start vboard hidden in the system tray
 
 ## Configuration
 vboard saves its settings to `~/.config/vboard/settings.conf`. This configuration file stores:
 - Background color
 - Text prediction enabled/disabled state
 - Gesture typing enabled/disabled state
+- Start minimized enabled/disabled state
 - Opacity level
 - Text color
 

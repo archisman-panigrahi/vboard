@@ -81,6 +81,7 @@ class VirtualKeyboard(Gtk.Window):
         self.text_prediction_enabled = True
         self.gesture_enabled = True
         self.gesture_visual_feedback_enabled = True
+        self.start_minimized = False
         self.keyboard_layout = DEFAULT_KEYBOARD_LAYOUT
         self.read_settings()
 
@@ -106,6 +107,7 @@ class VirtualKeyboard(Gtk.Window):
         self.tray_prediction_item = None
         self.tray_gesture_item = None
         self.tray_visual_feedback_item = None
+        self.tray_start_minimized_item = None
         self.tray_layout_items = {}
         self.css_provider = Gtk.CssProvider()
         self._css_provider_registered = False
@@ -219,6 +221,7 @@ class VirtualKeyboard(Gtk.Window):
             self.tray_prediction_item = None
             self.tray_gesture_item = None
             self.tray_visual_feedback_item = None
+            self.tray_start_minimized_item = None
             self.tray_layout_items = {}
             print(f"Warning: Could not create tray icon ({exc}). Tray disabled.")
 
@@ -247,6 +250,13 @@ class VirtualKeyboard(Gtk.Window):
             "toggled", self.on_tray_visual_feedback_toggled
         )
         tray_menu.append(self.tray_visual_feedback_item)
+
+        self.tray_start_minimized_item = Gtk.CheckMenuItem(label="Start Minimized")
+        self.tray_start_minimized_item.set_active(self.start_minimized)
+        self.tray_start_minimized_item.connect(
+            "toggled", self.on_tray_start_minimized_toggled
+        )
+        tray_menu.append(self.tray_start_minimized_item)
 
         tray_menu.append(Gtk.SeparatorMenuItem())
 
@@ -326,6 +336,9 @@ class VirtualKeyboard(Gtk.Window):
             return
 
         self.set_gesture_visual_feedback_enabled(widget.get_active())
+
+    def on_tray_start_minimized_toggled(self, widget):
+        self.set_start_minimized(widget.get_active())
 
     def on_tray_layout_toggled(self, widget, layout_key):
         if self._syncing_layout_menu_items or not widget.get_active():
@@ -599,6 +612,14 @@ class VirtualKeyboard(Gtk.Window):
         if self.text_prediction_enabled:
             GLib.idle_add(self.preload_suggestions)
 
+        self.save_settings()
+
+    def set_start_minimized(self, enabled):
+        enabled = bool(enabled)
+        if enabled == self.start_minimized:
+            return
+
+        self.start_minimized = enabled
         self.save_settings()
 
     def preload_suggestions(self):
@@ -1432,6 +1453,11 @@ class VirtualKeyboard(Gtk.Window):
                     "text_prediction_enabled",
                     fallback=True,
                 )
+                self.start_minimized = self.config.getboolean(
+                    "DEFAULT",
+                    "start_minimized",
+                    fallback=False,
+                )
                 self.keyboard_layout = self.normalize_keyboard_layout(
                     self.config.get(
                         "DEFAULT",
@@ -1462,6 +1488,7 @@ class VirtualKeyboard(Gtk.Window):
             "text_color": self.text_color,
             "style_variant": self.style_variant,
             "text_prediction_enabled": str(self.text_prediction_enabled),
+            "start_minimized": str(self.start_minimized),
             "gesture_enabled": str(self.gesture_enabled),
             "gesture_visual_feedback_enabled": str(
                 self.gesture_visual_feedback_enabled

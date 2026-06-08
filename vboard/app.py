@@ -29,6 +29,9 @@ class VboardApplication(Gtk.Application):
                 self.window.move(self.window.config_pos_x, self.window.config_pos_y)
             self.window.show_all()
             self.window.change_visibility()
+            if self.window.start_minimized and self.window.tray_icon is not None:
+                self.window.hide()
+            self.window.update_tray_menu()
             return
 
         self.window.show_all()
