@@ -1449,6 +1449,9 @@ class VirtualKeyboard(Gtk.Window):
             style_context.add_class(modifier_class)
 
     def on_key_button_press_event(self, widget, event, key_event):
+        if event.type in (Gdk.EventType._2BUTTON_PRESS, Gdk.EventType._3BUTTON_PRESS):
+            return True
+
         self.stop_key_repeat()
         self.clear_suggestion_override(update=False)
 
