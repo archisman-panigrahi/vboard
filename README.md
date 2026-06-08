@@ -88,11 +88,16 @@ sudo apt install hunspell-en-us
 
 **For Fedora-based distributions:**
 ```bash
-sudo dnf install python3-gobject python3-cairo gtk3 python3-uinput libappindicator-gtk3 meson ninja-build
+sudo dnf install python3-gobject python3-cairo gtk3 python3-uinput python3-setuptools libappindicator-gtk3 meson ninja-build
 ```
 Optional for word suggestions:
 ```bash
 sudo dnf install hunspell-en-US
+```
+
+In Fedora KDE, you will also have to create a symlink for qdbus
+```
+sudo ln -sf /usr/bin/qdbus-qt6 /usr/local/bin/qdbus6
 ```
 
 **For Arch-based distributions:**
