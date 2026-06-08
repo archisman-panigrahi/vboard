@@ -3,7 +3,11 @@
 
 *Wayland-compatible on KDE Plasma; also works on GNOME via Xwayland*.
 
+It supports many themes, as you can see below:
+
 <img src="screenshots/Screenshot_0_droid.png" width="600">
+
+<img src="screenshots/Screenshot_1_enhanced_lavendar.png" width="600">
 
 <img src="screenshots/stitched.gif" width="600">
 
