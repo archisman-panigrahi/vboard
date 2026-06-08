@@ -169,7 +169,7 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 - ☰ (menu) - Toggle visibility of other interface controls
 - `+ -` Increase opacity
 - `- -` Decrease opacity
-- **Background dropdown** - Change the keyboard background color
+- **Background dropdown** - Change the keyboard background color or pick an enhanced color theme
 - **Right-click a key** - Send Shift + that key once
 - **Tray menu text prediction toggle** - Show or hide typing suggestions; it is on by default
 - **Tray menu gesture toggle** - Enable or disable gesture typing; it is on by default
@@ -178,6 +178,7 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 ## Configuration
 vboard saves its settings to `~/.config/vboard/settings.conf`. This configuration file stores:
 - Background color
+- Theme style
 - Text prediction enabled/disabled state
 - Gesture typing enabled/disabled state
 - Start minimized enabled/disabled state
@@ -253,6 +254,9 @@ sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput
 
 ## Contributing
 Contributions are welcome.
+
+## Credits
+Special thanks to Yavuz Kagan Yadigar for the enhanced theme inspiration.
 
 ## License
 vboard is licensed under the GNU General Public License v3. See `LICENSE` for details.

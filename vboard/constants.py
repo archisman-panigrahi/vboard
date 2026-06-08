@@ -1,6 +1,6 @@
 APP_DISPLAY_NAME = "Vboard"
 APP_ID = "io.github.archisman-panigrahi.vboard"
-VERSION = "2.3.1"
+VERSION = "2.4.0"
 
 MODIFIER_KEYS = (
     "Shift_L",
@@ -302,9 +302,9 @@ SHIFTED_KEY_MAP = {
 SHIFTED_CHAR_TO_KEY_EVENT = {value: key for key, value in SHIFTED_KEY_MAP.items()}
 
 ONBOARD_BACKGROUND_PRESET = "__onboard__"
+ENHANCED_BACKGROUND_PRESET = "__enhanced__"
 
-COLOR_CHOICES = [
-    ("Onboard Droid Theme", ONBOARD_BACKGROUND_PRESET),
+COLOR_PRESETS = [
     ("Black", "0,0,0"),
     ("Red", "255,0,0"),
     ("Pink", "255,105,183"),
@@ -313,6 +313,7 @@ COLOR_CHOICES = [
     ("Blue", "0,0,110"),
     ("Gray", "128,128,128"),
     ("Dark Gray", "64,64,64"),
+    ("Slate", "51,65,85"),
     ("Orange", "255,165,0"),
     ("Yellow", "255,255,0"),
     ("Purple", "128,0,128"),
@@ -328,6 +329,15 @@ COLOR_CHOICES = [
     ("Indigo", "75,0,130"),
     ("Beige", "245,245,220"),
     ("Lavender", "230,230,250"),
+]
+
+COLOR_CHOICES = [
+    ("Onboard Droid Theme", ONBOARD_BACKGROUND_PRESET),
+    *[
+        (f"Enhanced {label}", (ENHANCED_BACKGROUND_PRESET, color))
+        for label, color in COLOR_PRESETS
+    ],
+    *COLOR_PRESETS,
 ]
 
 LIGHT_BACKGROUND_COLORS = {
