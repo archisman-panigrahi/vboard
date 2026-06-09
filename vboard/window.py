@@ -9,8 +9,6 @@ from .constants import (
     COLOR_CHOICES,
     DEFAULT_KEYBOARD_LAYOUT,
     ENHANCED_BACKGROUND_PRESET,
-    KEYBOARD_LAYOUTS,
-    KEY_LAYOUT_CHOICES,
     KEY_WIDTHS,
     LIGHT_BACKGROUND_COLORS,
     MODIFIER_KEYS,
@@ -28,6 +26,7 @@ from .gtk import (
     Gtk,
 )
 from .input_backends import NullInputBackend, UInputBackend
+from .layouts import get_default_layout_key, get_layout_choices, load_keyboard_layouts
 from .suggestions import HunspellSuggestionEngine
 
 
@@ -74,6 +73,10 @@ class VirtualKeyboard(Gtk.Window):
         self.CONFIG_DIR = os.path.expanduser("~/.config/vboard")
         self.CONFIG_FILE = os.path.join(self.CONFIG_DIR, "settings.conf")
         self.config = configparser.ConfigParser()
+        self.keyboard_layouts = load_keyboard_layouts(
+            os.path.join(self.CONFIG_DIR, "layouts")
+        )
+        self.keyboard_layout_choices = get_layout_choices(self.keyboard_layouts)
 
         self.bg_color = "0,0,0"
         self.opacity = "0.90"
@@ -113,6 +116,7 @@ class VirtualKeyboard(Gtk.Window):
         self.css_provider = Gtk.CssProvider()
         self._css_provider_registered = False
         self._last_suggestion_scale = None
+        self.caps_lock_active = False
         self._syncing_gesture_menu_item = False
         self._syncing_visual_feedback_menu_item = False
         self._syncing_layout_menu_items = False
@@ -177,6 +181,8 @@ class VirtualKeyboard(Gtk.Window):
 
         if self.gesture_enabled:
             self.enable_gesture_typing(sync_menu=False)
+
+        self.sync_caps_lock_from_system(connect=True)
 
     def get_app_icon_name(self):
         icon_theme = Gtk.IconTheme.get_default()
@@ -265,7 +271,7 @@ class VirtualKeyboard(Gtk.Window):
         layout_menu = Gtk.Menu()
         self.tray_layout_items = {}
         first_layout_item = None
-        for layout_key, layout_label in KEY_LAYOUT_CHOICES:
+        for layout_key, layout_label in self.keyboard_layout_choices:
             if first_layout_item is None:
                 item = Gtk.RadioMenuItem.new_with_label(None, layout_label)
                 first_layout_item = item
@@ -357,12 +363,12 @@ class VirtualKeyboard(Gtk.Window):
         self._syncing_layout_menu_items = False
 
     def normalize_keyboard_layout(self, layout_key):
-        if layout_key in KEYBOARD_LAYOUTS:
+        if layout_key in self.keyboard_layouts:
             return layout_key
-        return DEFAULT_KEYBOARD_LAYOUT
+        return get_default_layout_key(self.keyboard_layouts)
 
     def get_layout_config(self):
-        return KEYBOARD_LAYOUTS[self.keyboard_layout]
+        return self.keyboard_layouts[self.keyboard_layout]
 
     def get_active_key_rows(self):
         return self.get_layout_config()["rows"]
@@ -372,6 +378,20 @@ class VirtualKeyboard(Gtk.Window):
 
     def get_active_shifted_map(self):
         return self.get_layout_config()["shifted"]
+
+    def sync_caps_lock_from_system(self, keymap=None, connect=False):
+        try:
+            keymap = keymap or Gdk.Keymap.get_default()
+            if keymap is None or not hasattr(keymap, "get_caps_lock_state"):
+                return
+            self.set_caps_lock_active(
+                bool(keymap.get_caps_lock_state()),
+                update_system=False,
+            )
+            if connect:
+                keymap.connect("state-changed", self.sync_caps_lock_from_system)
+        except (AttributeError, TypeError, RuntimeError):
+            return
 
     def refresh_layout_character_lookup(self):
         lookup = {}
@@ -1414,6 +1434,9 @@ class VirtualKeyboard(Gtk.Window):
             col += width
 
     def get_button_label(self, key_event):
+        if key_event == "CapsLock":
+            return "Caps"
+
         if key_event in MODIFIER_KEYS:
             return key_event[:-2]
 
@@ -1422,11 +1445,12 @@ class VirtualKeyboard(Gtk.Window):
         shift_active = self.modifiers["Shift_L"] or self.modifiers["Shift_R"]
         key_label = key_labels.get(key_event, key_event)
 
+        if len(key_label) == 1 and key_label.isalpha():
+            uppercase_active = shift_active != self.caps_lock_active
+            return key_label.upper() if uppercase_active else key_label.lower()
+
         if shift_active and key_event in shifted_map:
             return shifted_map[key_event]
-
-        if len(key_label) == 1 and key_label.isalpha():
-            return key_label.upper() if shift_active else key_label.lower()
 
         return key_label
 
@@ -1448,6 +1472,32 @@ class VirtualKeyboard(Gtk.Window):
         if value:
             style_context.add_class(modifier_class)
 
+    def set_caps_lock_active(self, active, update_system=True):
+        active = bool(active)
+        if update_system and active != self.caps_lock_active:
+            empty_modifiers = {modifier: False for modifier in MODIFIER_KEYS}
+            if self.gesture_controller is not None:
+                self.gesture_controller.note_non_gesture_key()
+            self.backend.emit_key("CapsLock", empty_modifiers)
+
+        if active == self.caps_lock_active:
+            return
+
+        self.caps_lock_active = active
+        button = self.key_buttons.get("CapsLock")
+        if button is not None:
+            style_context = button.get_style_context()
+            style_context.remove_class("active-modifier")
+            style_context.remove_class("active-command-modifier")
+            if active:
+                style_context.add_class("active-command-modifier")
+        self.update_key_labels()
+
+    def toggle_caps_lock(self):
+        self.set_caps_lock_active(not self.caps_lock_active)
+        self.current_word = ""
+        self.update_suggestions()
+
     def on_key_button_press_event(self, widget, event, key_event):
         if event.type in (Gdk.EventType._2BUTTON_PRESS, Gdk.EventType._3BUTTON_PRESS):
             return True
@@ -1461,6 +1511,11 @@ class VirtualKeyboard(Gtk.Window):
             return True
 
         if event.button != 1:
+            return False
+
+        if key_event == "CapsLock":
+            self.toggle_caps_lock()
+            self.reset_modifiers()
             return False
 
         if key_event in self.modifiers:
@@ -1600,11 +1655,12 @@ class VirtualKeyboard(Gtk.Window):
         shifted_map = self.get_active_shifted_map()
         key_label = key_labels.get(key_event, key_event)
 
+        if len(key_label) == 1 and key_label.isalpha():
+            uppercase_active = shift_active != self.caps_lock_active
+            return key_label.upper() if uppercase_active else key_label.lower()
+
         if shift_active and key_event in shifted_map:
             return shifted_map[key_event]
-
-        if len(key_label) == 1 and key_label.isalpha():
-            return key_label.upper() if shift_active else key_label.lower()
 
         if len(key_label) == 1:
             return key_label
@@ -1688,6 +1744,8 @@ class VirtualKeyboard(Gtk.Window):
         key_event_with_shift = self.layout_character_lookup.get(char)
         if key_event_with_shift is not None:
             key_event, needs_shift = key_event_with_shift
+            if self.caps_lock_active and char.isalpha():
+                needs_shift = not needs_shift
             if needs_shift:
                 modifiers["Shift_L"] = True
             return key_event, modifiers
