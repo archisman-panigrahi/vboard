@@ -274,7 +274,19 @@ sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput
 Contributions are welcome.
 
 ## Credits
-Special thanks to Yavuz Kagan Yadigar for the enhanced theme inspiration.
+Originally created by mdev588. The original project was archived, and it is now maintained by Archisman Panigrahi.
+
+Original project: https://github.com/mdev588/vboard
+
+Special thanks to honjow for the icon and patches.
+
+Thanks to Yavuz Kagan Yadigar for the enhanced theme inspiration.
+
+Thanks to onboard developers for the droid theme inspiration.
+
+Thanks to the Hunspell project for the suggestion engine.
+
+This project is licensed under GPLv3.
 
 ## License
 vboard is licensed under the GNU General Public License v3. See `LICENSE` for details.
