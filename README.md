@@ -197,10 +197,19 @@ vboard saves its settings to `~/.config/vboard/settings.conf`. This configuratio
 You can manually edit this file or use the built-in interface controls to customize the appearance.
 
 ## Customizing Keyboard Layout
-The keyboard layout is defined in the `rows` list in the source code. To modify the layout:
-1. Download the source code
-2. Locate the rows definition
-3. Modify the key arrangement as needed
+Keyboard layouts are JSON files. Packaged layouts are installed to:
+
+```bash
+/usr/share/vboard/vboard/layouts/
+```
+
+User layouts can be added or overridden in:
+
+```bash
+~/.config/vboard/layouts/
+```
+
+Each layout file defines an `id`, display `label`, `rows`, optional key `labels`, and optional `shifted` output. To customize a packaged layout, copy its JSON file into `~/.config/vboard/layouts/`, edit it, and restart vboard.
 
 ## Troubleshooting
 

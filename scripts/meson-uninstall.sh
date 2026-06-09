@@ -88,6 +88,12 @@ remove_file "$VBOARD_PYTHON_DIR/constants.py"
 remove_file "$VBOARD_PYTHON_DIR/environment.py"
 remove_file "$VBOARD_PYTHON_DIR/gtk.py"
 remove_file "$VBOARD_PYTHON_DIR/input_backends.py"
+remove_file "$VBOARD_PYTHON_DIR/layouts.py"
+remove_file "$VBOARD_PYTHON_DIR/layouts/en.json"
+remove_file "$VBOARD_PYTHON_DIR/layouts/de.json"
+remove_file "$VBOARD_PYTHON_DIR/layouts/fr.json"
+remove_file "$VBOARD_PYTHON_DIR/layouts/ru.json"
+remove_file "$VBOARD_PYTHON_DIR/layouts/sv.json"
 remove_file "$VBOARD_PYTHON_DIR/suggestions.py"
 remove_file "$VBOARD_PYTHON_DIR/window.py"
 remove_file "$SCRIPTS_DIR/install-kwin-rule.sh"
@@ -102,6 +108,7 @@ remove_file "$SCRIPTS_DIR/install-plasma-osk.sh"
 remove_file "$SCRIPTS_DIR/uninstall-plasma-osk.sh"
 
 # Prune empty directories we touched; ignore non-empty dirs.
+rmdir "$VBOARD_PYTHON_DIR/layouts" 2>/dev/null || true
 rmdir "$VBOARD_PYTHON_DIR" 2>/dev/null || true
 rmdir "$VBOARD_DATA_DIR/udev" 2>/dev/null || true
 rmdir "$SCRIPTS_DIR" 2>/dev/null || true

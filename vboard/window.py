@@ -9,8 +9,6 @@ from .constants import (
     COLOR_CHOICES,
     DEFAULT_KEYBOARD_LAYOUT,
     ENHANCED_BACKGROUND_PRESET,
-    KEYBOARD_LAYOUTS,
-    KEY_LAYOUT_CHOICES,
     KEY_WIDTHS,
     LIGHT_BACKGROUND_COLORS,
     MODIFIER_KEYS,
@@ -28,6 +26,7 @@ from .gtk import (
     Gtk,
 )
 from .input_backends import NullInputBackend, UInputBackend
+from .layouts import get_default_layout_key, get_layout_choices, load_keyboard_layouts
 from .suggestions import HunspellSuggestionEngine
 
 
@@ -74,6 +73,10 @@ class VirtualKeyboard(Gtk.Window):
         self.CONFIG_DIR = os.path.expanduser("~/.config/vboard")
         self.CONFIG_FILE = os.path.join(self.CONFIG_DIR, "settings.conf")
         self.config = configparser.ConfigParser()
+        self.keyboard_layouts = load_keyboard_layouts(
+            os.path.join(self.CONFIG_DIR, "layouts")
+        )
+        self.keyboard_layout_choices = get_layout_choices(self.keyboard_layouts)
 
         self.bg_color = "0,0,0"
         self.opacity = "0.90"
@@ -265,7 +268,7 @@ class VirtualKeyboard(Gtk.Window):
         layout_menu = Gtk.Menu()
         self.tray_layout_items = {}
         first_layout_item = None
-        for layout_key, layout_label in KEY_LAYOUT_CHOICES:
+        for layout_key, layout_label in self.keyboard_layout_choices:
             if first_layout_item is None:
                 item = Gtk.RadioMenuItem.new_with_label(None, layout_label)
                 first_layout_item = item
@@ -357,12 +360,12 @@ class VirtualKeyboard(Gtk.Window):
         self._syncing_layout_menu_items = False
 
     def normalize_keyboard_layout(self, layout_key):
-        if layout_key in KEYBOARD_LAYOUTS:
+        if layout_key in self.keyboard_layouts:
             return layout_key
-        return DEFAULT_KEYBOARD_LAYOUT
+        return get_default_layout_key(self.keyboard_layouts)
 
     def get_layout_config(self):
-        return KEYBOARD_LAYOUTS[self.keyboard_layout]
+        return self.keyboard_layouts[self.keyboard_layout]
 
     def get_active_key_rows(self):
         return self.get_layout_config()["rows"]

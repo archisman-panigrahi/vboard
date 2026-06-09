@@ -35,9 +35,15 @@ install_data(
     'vboard/gesture.py',
     'vboard/gtk.py',
     'vboard/input_backends.py',
+    'vboard/layouts.py',
     'vboard/suggestions.py',
     'vboard/window.py',
   ),
+  install_dir: vboard_python_dir,
+)
+
+install_subdir(
+  'vboard/layouts',
   install_dir: vboard_python_dir,
 )
 
