@@ -837,7 +837,7 @@ class VirtualKeyboard(Gtk.Window):
         if hasattr(self.tray_icon, "emit_menu_updated"):
             self.tray_icon.emit_menu_updated()
 
-    def on_tray_activate(self, icon):
+    def toggle_visibility(self):
         if self.get_visible():
             self.hide()
         else:
@@ -845,6 +845,9 @@ class VirtualKeyboard(Gtk.Window):
             self.present()
             self.request_keep_above()
         self.update_tray_menu()
+
+    def on_tray_activate(self, icon):
+        self.toggle_visibility()
 
     def on_statusicon_activate(self, widget):
         self.on_tray_activate(widget)
