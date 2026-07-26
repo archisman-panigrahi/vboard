@@ -1,3 +1,9 @@
+vboard (2.6.0-1) unstable; urgency=medium
+
+  * simpler show/hide behavior, more options on right click
+
+ -- Archisman Panigrahi <apandada1@gmail.com>  Sun, 26 Jul 2026 16:41:07 -0400
+
 vboard (2.5.0-1) unstable; urgency=medium
 
   * Better caps lock behavior and easy custom layouts
