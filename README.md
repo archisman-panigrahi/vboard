@@ -176,13 +176,13 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 
 ### Interface Controls
 - ☰ (menu) - Toggle visibility of other interface controls
+- **Options** - Open in-app options for typing, startup, layout, about, bug reports, and quit actions
 - `+ -` Increase opacity
 - `- -` Decrease opacity
 - **Background dropdown** - Change the keyboard background color or pick an enhanced color theme
 - **Right-click a key** - Send Shift + that key once
-- **Tray menu text prediction toggle** - Show or hide typing suggestions; it is on by default
-- **Tray menu gesture toggle** - Enable or disable gesture typing; it is on by default
-- **Tray menu start minimized toggle** - Start vboard hidden in the system tray
+- **Tray icon click** - Hide or show vboard
+- **Tray icon right-click** - Open tray controls when the tray backend supports a separate context menu
 
 ## Configuration
 vboard saves its settings to `~/.config/vboard/settings.conf`. This configuration file stores:
@@ -191,10 +191,11 @@ vboard saves its settings to `~/.config/vboard/settings.conf`. This configuratio
 - Text prediction enabled/disabled state
 - Gesture typing enabled/disabled state
 - Start minimized enabled/disabled state
+- Keyboard layout
 - Opacity level
 - Text color
 
-You can manually edit this file or use the built-in interface controls to customize the appearance.
+You can manually edit this file or use the built-in interface controls to customize vboard.
 
 ## Customizing Keyboard Layout
 Keyboard layouts are JSON files. Packaged layouts are installed to:

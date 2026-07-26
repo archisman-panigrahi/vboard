@@ -22,12 +22,506 @@ from .gtk import (
     APPINDICATOR_BACKEND,
     AppIndicator3,
     Gdk,
+    Gio,
     GLib,
     Gtk,
 )
 from .input_backends import NullInputBackend, UInputBackend
 from .layouts import get_default_layout_key, get_layout_choices, load_keyboard_layouts
 from .suggestions import HunspellSuggestionEngine
+
+
+BUG_REPORT_URL = "https://github.com/archisman-panigrahi/vboard/issues/"
+
+STATUS_NOTIFIER_ITEM_XML = """
+<node>
+  <interface name="org.kde.StatusNotifierItem">
+    <property name="Category" type="s" access="read"/>
+    <property name="Id" type="s" access="read"/>
+    <property name="Title" type="s" access="read"/>
+    <property name="Status" type="s" access="read"/>
+    <property name="WindowId" type="i" access="read"/>
+    <property name="IconName" type="s" access="read"/>
+    <property name="IconThemePath" type="s" access="read"/>
+    <property name="IconPixmap" type="a(iiay)" access="read"/>
+    <property name="OverlayIconName" type="s" access="read"/>
+    <property name="OverlayIconPixmap" type="a(iiay)" access="read"/>
+    <property name="AttentionIconName" type="s" access="read"/>
+    <property name="AttentionIconPixmap" type="a(iiay)" access="read"/>
+    <property name="AttentionMovieName" type="s" access="read"/>
+    <property name="ToolTip" type="(sa(iiay)ss)" access="read"/>
+    <property name="ItemIsMenu" type="b" access="read"/>
+    <property name="Menu" type="o" access="read"/>
+    <method name="ContextMenu">
+      <arg name="x" type="i" direction="in"/>
+      <arg name="y" type="i" direction="in"/>
+    </method>
+    <method name="Activate">
+      <arg name="x" type="i" direction="in"/>
+      <arg name="y" type="i" direction="in"/>
+    </method>
+    <method name="SecondaryActivate">
+      <arg name="x" type="i" direction="in"/>
+      <arg name="y" type="i" direction="in"/>
+    </method>
+    <method name="Scroll">
+      <arg name="delta" type="i" direction="in"/>
+      <arg name="orientation" type="s" direction="in"/>
+    </method>
+  </interface>
+</node>
+"""
+
+DBUS_MENU_XML = """
+<node>
+  <interface name="com.canonical.dbusmenu">
+    <property name="Version" type="u" access="read"/>
+    <property name="TextDirection" type="s" access="read"/>
+    <property name="Status" type="s" access="read"/>
+    <property name="IconThemePath" type="as" access="read"/>
+    <method name="GetLayout">
+      <arg name="parentId" type="i" direction="in"/>
+      <arg name="recursionDepth" type="i" direction="in"/>
+      <arg name="propertyNames" type="as" direction="in"/>
+      <arg name="revision" type="u" direction="out"/>
+      <arg name="layout" type="(ia{sv}av)" direction="out"/>
+    </method>
+    <method name="GetGroupProperties">
+      <arg name="ids" type="ai" direction="in"/>
+      <arg name="propertyNames" type="as" direction="in"/>
+      <arg name="properties" type="a(ia{sv})" direction="out"/>
+    </method>
+    <method name="GetProperty">
+      <arg name="id" type="i" direction="in"/>
+      <arg name="name" type="s" direction="in"/>
+      <arg name="value" type="v" direction="out"/>
+    </method>
+    <method name="Event">
+      <arg name="id" type="i" direction="in"/>
+      <arg name="eventId" type="s" direction="in"/>
+      <arg name="data" type="v" direction="in"/>
+      <arg name="timestamp" type="u" direction="in"/>
+    </method>
+    <method name="EventGroup">
+      <arg name="events" type="a(isvu)" direction="in"/>
+      <arg name="idErrors" type="ai" direction="out"/>
+    </method>
+    <method name="AboutToShow">
+      <arg name="id" type="i" direction="in"/>
+      <arg name="needUpdate" type="b" direction="out"/>
+    </method>
+    <method name="AboutToShowGroup">
+      <arg name="ids" type="ai" direction="in"/>
+      <arg name="updatesNeeded" type="ai" direction="out"/>
+      <arg name="idErrors" type="ai" direction="out"/>
+    </method>
+    <signal name="ItemsPropertiesUpdated">
+      <arg name="updatedProps" type="a(ia{sv})"/>
+      <arg name="removedProps" type="a(ias)"/>
+    </signal>
+    <signal name="LayoutUpdated">
+      <arg name="revision" type="u"/>
+      <arg name="parent" type="i"/>
+    </signal>
+  </interface>
+</node>
+"""
+
+
+class StatusNotifierTrayIcon:
+    OBJECT_PATH = "/StatusNotifierItem"
+    MENU_PATH = "/StatusNotifierItem/Menu"
+    INTERFACE_NAME = "org.kde.StatusNotifierItem"
+    MENU_INTERFACE_NAME = "com.canonical.dbusmenu"
+    WATCHER_NAME = "org.kde.StatusNotifierWatcher"
+    WATCHER_PATH = "/StatusNotifierWatcher"
+    DBUS_NAME = "org.freedesktop.DBus"
+    DBUS_PATH = "/org/freedesktop/DBus"
+    MENU_SEPARATOR_ID = 5
+    MENU_LAYOUT_ID = 6
+    MENU_SECOND_SEPARATOR_ID = 100
+    MENU_LAYOUT_ID_OFFSET = 1000
+
+    def __init__(self, window, icon_name):
+        self.window = window
+        self.icon_name = icon_name
+        self.connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        self.bus_name = f"org.freedesktop.StatusNotifierItem-{os.getpid()}-1"
+        self.registration_id = None
+        self.menu_registration_id = None
+        self.menu_revision = 1
+        self.name_acquired = False
+        try:
+            request_result = self.connection.call_sync(
+                self.DBUS_NAME,
+                self.DBUS_PATH,
+                self.DBUS_NAME,
+                "RequestName",
+                GLib.Variant("(su)", (self.bus_name, 0)),
+                GLib.VariantType.new("(u)"),
+                Gio.DBusCallFlags.NONE,
+                1000,
+                None,
+            )
+            request_reply = request_result.unpack()[0]
+            if request_reply not in (1, 4):
+                raise RuntimeError(f"Could not acquire D-Bus name {self.bus_name}")
+            self.name_acquired = True
+
+            self.node_info = Gio.DBusNodeInfo.new_for_xml(STATUS_NOTIFIER_ITEM_XML)
+            self.interface_info = self.node_info.interfaces[0]
+            self.menu_node_info = Gio.DBusNodeInfo.new_for_xml(DBUS_MENU_XML)
+            self.menu_interface_info = self.menu_node_info.interfaces[0]
+            self.menu_registration_id = self.connection.register_object(
+                self.MENU_PATH,
+                self.menu_interface_info,
+                self.on_menu_method_call,
+                self.on_menu_get_property,
+                None,
+            )
+            self.registration_id = self.connection.register_object(
+                self.OBJECT_PATH,
+                self.interface_info,
+                self.on_method_call,
+                self.on_get_property,
+                None,
+            )
+            self.connection.call_sync(
+                self.WATCHER_NAME,
+                self.WATCHER_PATH,
+                self.WATCHER_NAME,
+                "RegisterStatusNotifierItem",
+                GLib.Variant("(s)", (self.bus_name,)),
+                None,
+                Gio.DBusCallFlags.NONE,
+                1000,
+                None,
+            )
+        except Exception:
+            self.unregister()
+            raise
+
+    def on_method_call(
+        self,
+        connection,
+        sender,
+        object_path,
+        interface_name,
+        method_name,
+        parameters,
+        invocation,
+    ):
+        if method_name == "Activate":
+            GLib.idle_add(self.window.on_tray_activate, None)
+            invocation.return_value(None)
+            return
+
+        if method_name == "ContextMenu":
+            x, y = parameters.unpack()
+            GLib.idle_add(self.window.popup_tray_menu_at_coordinates, x, y)
+            invocation.return_value(None)
+            return
+
+        if method_name == "SecondaryActivate":
+            invocation.return_value(None)
+            return
+
+        if method_name == "Scroll":
+            invocation.return_value(None)
+            return
+
+        invocation.return_dbus_error(
+            "org.kde.StatusNotifierItem.Error.NotSupported",
+            f"Unsupported tray method: {method_name}",
+        )
+
+    def on_get_property(
+        self,
+        connection,
+        sender,
+        object_path,
+        interface_name,
+        property_name,
+    ):
+        property_values = {
+            "Category": GLib.Variant("s", "ApplicationStatus"),
+            "Id": GLib.Variant("s", "vboard"),
+            "Title": GLib.Variant("s", APP_DISPLAY_NAME),
+            "Status": GLib.Variant("s", "Active"),
+            "WindowId": GLib.Variant("i", 0),
+            "IconName": GLib.Variant("s", self.icon_name),
+            "IconThemePath": GLib.Variant("s", ""),
+            "IconPixmap": GLib.Variant("a(iiay)", []),
+            "OverlayIconName": GLib.Variant("s", ""),
+            "OverlayIconPixmap": GLib.Variant("a(iiay)", []),
+            "AttentionIconName": GLib.Variant("s", ""),
+            "AttentionIconPixmap": GLib.Variant("a(iiay)", []),
+            "AttentionMovieName": GLib.Variant("s", ""),
+            "ToolTip": GLib.Variant(
+                "(sa(iiay)ss)",
+                (self.icon_name, [], APP_DISPLAY_NAME, "Virtual Keyboard"),
+            ),
+            "ItemIsMenu": GLib.Variant("b", False),
+            "Menu": GLib.Variant("o", self.MENU_PATH),
+        }
+        return property_values.get(property_name)
+
+    def on_menu_method_call(
+        self,
+        connection,
+        sender,
+        object_path,
+        interface_name,
+        method_name,
+        parameters,
+        invocation,
+    ):
+        if method_name == "GetLayout":
+            invocation.return_value(
+                GLib.Variant(
+                    "(u(ia{sv}av))",
+                    (self.menu_revision, self.get_menu_layout()),
+                )
+            )
+            return
+
+        if method_name == "GetGroupProperties":
+            ids, property_names = parameters.unpack()
+            invocation.return_value(
+                GLib.Variant(
+                    "(a(ia{sv}))",
+                    ([self.get_menu_properties(item_id) for item_id in ids],),
+                )
+            )
+            return
+
+        if method_name == "GetProperty":
+            item_id, property_name = parameters.unpack()
+            value = self.get_menu_properties(item_id).get(
+                property_name,
+                GLib.Variant("s", ""),
+            )
+            invocation.return_value(GLib.Variant("(v)", (value,)))
+            return
+
+        if method_name == "Event":
+            item_id, event_id, data, timestamp = parameters.unpack()
+            self.handle_menu_event(item_id, event_id)
+            invocation.return_value(None)
+            return
+
+        if method_name == "EventGroup":
+            for item_id, event_id, data, timestamp in parameters.unpack()[0]:
+                self.handle_menu_event(item_id, event_id)
+            invocation.return_value(GLib.Variant("(ai)", ([],)))
+            return
+
+        if method_name == "AboutToShow":
+            invocation.return_value(GLib.Variant("(b)", (False,)))
+            return
+
+        if method_name == "AboutToShowGroup":
+            invocation.return_value(GLib.Variant("(aiai)", ([], [])))
+            return
+
+        invocation.return_dbus_error(
+            "com.canonical.dbusmenu.Error.NotSupported",
+            f"Unsupported menu method: {method_name}",
+        )
+
+    def on_menu_get_property(
+        self,
+        connection,
+        sender,
+        object_path,
+        interface_name,
+        property_name,
+    ):
+        property_values = {
+            "Version": GLib.Variant("u", 3),
+            "TextDirection": GLib.Variant("s", "ltr"),
+            "Status": GLib.Variant("s", "normal"),
+            "IconThemePath": GLib.Variant("as", []),
+        }
+        return property_values.get(property_name)
+
+    def menu_rows(self):
+        rows = [
+            (1, {"label": "Hide" if self.window.get_visible() else "Show"}),
+            (
+                2,
+                {
+                    "label": "Text Prediction",
+                    "toggle-type": "checkmark",
+                    "toggle-state": int(self.window.text_prediction_enabled),
+                },
+            ),
+            (
+                3,
+                {
+                    "label": "Touch Typing (requires app restart)",
+                    "toggle-type": "checkmark",
+                    "toggle-state": int(self.window.gesture_enabled),
+                },
+            ),
+            (
+                4,
+                {
+                    "label": "Visual Feedback",
+                    "enabled": self.window.gesture_enabled,
+                    "toggle-type": "checkmark",
+                    "toggle-state": int(
+                        self.window.gesture_visual_feedback_enabled
+                    ),
+                },
+            ),
+            (
+                self.MENU_SEPARATOR_ID,
+                {"type": "separator", "enabled": False},
+            ),
+            (
+                self.MENU_LAYOUT_ID,
+                {
+                    "label": "Keyboard Layout",
+                    "children-display": "submenu",
+                },
+            ),
+            (
+                self.MENU_SECOND_SEPARATOR_ID,
+                {"type": "separator", "enabled": False},
+            ),
+            (8, {"label": "About"}),
+            (10, {"label": "Report bugs"}),
+            (9, {"label": "Quit"}),
+        ]
+        return rows
+
+    def layout_item_id(self, index):
+        return self.MENU_LAYOUT_ID_OFFSET + index
+
+    def get_menu_properties(self, item_id):
+        properties = {"enabled": True, "visible": True}
+        for row_id, row_properties in self.menu_rows():
+            if row_id == item_id:
+                properties.update(row_properties)
+                break
+        else:
+            for index, (layout_key, layout_label) in enumerate(
+                self.window.keyboard_layout_choices
+            ):
+                if self.layout_item_id(index) == item_id:
+                    properties.update(
+                        {
+                            "label": layout_label,
+                            "toggle-type": "radio",
+                            "toggle-state": int(
+                                layout_key == self.window.keyboard_layout
+                            ),
+                        }
+                    )
+                    break
+
+        return {
+            name: self.menu_property_variant(value)
+            for name, value in properties.items()
+        }
+
+    def menu_property_variant(self, value):
+        if isinstance(value, bool):
+            return GLib.Variant("b", value)
+        if isinstance(value, int):
+            return GLib.Variant("i", value)
+        return GLib.Variant("s", value)
+
+    def menu_layout_item(self, item_id, children=None):
+        return GLib.Variant(
+            "(ia{sv}av)",
+            (item_id, self.get_menu_properties(item_id), children or []),
+        )
+
+    def get_menu_layout(self):
+        layout_children = [
+            self.menu_layout_item(self.layout_item_id(index))
+            for index, _choice in enumerate(self.window.keyboard_layout_choices)
+        ]
+        children = []
+        for item_id, _properties in self.menu_rows():
+            if item_id == self.MENU_LAYOUT_ID:
+                children.append(self.menu_layout_item(item_id, layout_children))
+            else:
+                children.append(self.menu_layout_item(item_id))
+        return (0, {}, children)
+
+    def handle_menu_event(self, item_id, event_id):
+        if event_id not in ("clicked", "opened"):
+            return
+        if event_id == "opened":
+            self.emit_menu_updated()
+            return
+
+        actions = {
+            1: lambda: self.window.on_tray_activate(None),
+            2: lambda: self.window.set_text_prediction_enabled(
+                not self.window.text_prediction_enabled
+            ),
+            3: self.toggle_gesture_typing,
+            4: lambda: self.window.set_gesture_visual_feedback_enabled(
+                not self.window.gesture_visual_feedback_enabled
+            ),
+            8: lambda: self.window.on_tray_about(None),
+            9: lambda: self.window.on_tray_quit(None),
+            10: lambda: self.window.open_bug_report_url(),
+        }
+        if item_id in actions:
+            GLib.idle_add(actions[item_id])
+            return
+
+        layout_index = item_id - self.MENU_LAYOUT_ID_OFFSET
+        if 0 <= layout_index < len(self.window.keyboard_layout_choices):
+            layout_key = self.window.keyboard_layout_choices[layout_index][0]
+            GLib.idle_add(self.window.set_keyboard_layout, layout_key)
+
+    def toggle_gesture_typing(self):
+        if self.window.gesture_enabled:
+            self.window.disable_gesture_typing()
+        else:
+            self.window.enable_gesture_typing()
+
+    def emit_menu_updated(self):
+        if self.menu_registration_id is None:
+            return
+        self.menu_revision += 1
+        self.connection.emit_signal(
+            None,
+            self.MENU_PATH,
+            self.MENU_INTERFACE_NAME,
+            "LayoutUpdated",
+            GLib.Variant("(ui)", (self.menu_revision, 0)),
+        )
+
+    def unregister(self):
+        if self.menu_registration_id is not None:
+            self.connection.unregister_object(self.menu_registration_id)
+            self.menu_registration_id = None
+        if self.registration_id is not None:
+            self.connection.unregister_object(self.registration_id)
+            self.registration_id = None
+        if self.name_acquired:
+            try:
+                self.connection.call_sync(
+                    self.DBUS_NAME,
+                    self.DBUS_PATH,
+                    self.DBUS_NAME,
+                    "ReleaseName",
+                    GLib.Variant("(s)", (self.bus_name,)),
+                    GLib.VariantType.new("(u)"),
+                    Gio.DBusCallFlags.NONE,
+                    1000,
+                    None,
+                )
+            except Exception:
+                pass
+            self.name_acquired = False
 
 
 class VirtualKeyboard(Gtk.Window):
@@ -113,13 +607,14 @@ class VirtualKeyboard(Gtk.Window):
         self.tray_visual_feedback_item = None
         self.tray_start_minimized_item = None
         self.tray_layout_items = {}
+        self.settings_dialog = None
+        self.settings_gesture_check = None
+        self.settings_visual_feedback_check = None
         self.css_provider = Gtk.CssProvider()
         self._css_provider_registered = False
         self._last_suggestion_scale = None
         self.caps_lock_active = False
-        self._syncing_gesture_menu_item = False
-        self._syncing_visual_feedback_menu_item = False
-        self._syncing_layout_menu_items = False
+        self._syncing_tray_items = False
         self.layout_character_lookup = {}
         self.suggestion_font_size = self.BASE_SUGGESTION_FONT_SIZE
         self.gesture_controller = None
@@ -180,7 +675,7 @@ class VirtualKeyboard(Gtk.Window):
             self.create_row(grid, row_index, keys)
 
         if self.gesture_enabled:
-            self.enable_gesture_typing(sync_menu=False)
+            self.enable_gesture_typing(sync_controls=False, save=False)
 
         self.sync_caps_lock_from_system(connect=True)
 
@@ -194,6 +689,9 @@ class VirtualKeyboard(Gtk.Window):
 
     def create_tray_icon(self):
         icon_name = self.get_app_icon_name()
+        if self.create_status_notifier_tray_icon(icon_name):
+            return
+
         if APPINDICATOR_AVAILABLE:
             if APPINDICATOR_BACKEND == "ayatana":
                 GLib.log_set_handler(
@@ -213,6 +711,26 @@ class VirtualKeyboard(Gtk.Window):
             self.tray_icon.set_menu(self.tray_menu)
             return
 
+        if self.create_status_tray_icon(icon_name):
+            return
+
+        self.clear_tray_icon(
+            "Warning: Could not create tray icon. Tray disabled."
+        )
+
+    def create_status_notifier_tray_icon(self, icon_name):
+        try:
+            self.tray_icon = StatusNotifierTrayIcon(self, icon_name)
+            self.tray_menu = self.build_tray_menu()
+            print("Using native StatusNotifierItem for system tray.")
+            return True
+        except Exception as exc:
+            self.clear_tray_icon(
+                f"Warning: Could not create native StatusNotifierItem tray icon ({exc})."
+            )
+            return False
+
+    def create_status_tray_icon(self, icon_name):
         try:
             self.tray_icon = Gtk.StatusIcon()
             self.tray_icon.set_from_icon_name(icon_name)
@@ -221,16 +739,26 @@ class VirtualKeyboard(Gtk.Window):
             self.tray_icon.connect("popup-menu", self.on_statusicon_popup_menu)
             self.tray_menu = self.build_tray_menu()
             print("Using Gtk.StatusIcon for system tray.")
+            return True
         except Exception as exc:
-            self.tray_icon = None
-            self.tray_menu = None
-            self.tray_toggle_item = None
-            self.tray_prediction_item = None
-            self.tray_gesture_item = None
-            self.tray_visual_feedback_item = None
-            self.tray_start_minimized_item = None
-            self.tray_layout_items = {}
-            print(f"Warning: Could not create tray icon ({exc}). Tray disabled.")
+            self.clear_tray_icon(
+                f"Warning: Could not create Gtk.StatusIcon tray icon ({exc})."
+            )
+            return False
+
+    def clear_tray_icon(self, warning=None):
+        if self.tray_icon is not None and hasattr(self.tray_icon, "unregister"):
+            self.tray_icon.unregister()
+        self.tray_icon = None
+        self.tray_menu = None
+        self.tray_toggle_item = None
+        self.tray_prediction_item = None
+        self.tray_gesture_item = None
+        self.tray_visual_feedback_item = None
+        self.tray_start_minimized_item = None
+        self.tray_layout_items = {}
+        if warning:
+            print(warning)
 
     def build_tray_menu(self):
         tray_menu = Gtk.Menu()
@@ -239,27 +767,22 @@ class VirtualKeyboard(Gtk.Window):
         tray_menu.append(self.tray_toggle_item)
 
         self.tray_prediction_item = Gtk.CheckMenuItem(label="Text Prediction")
-        self.tray_prediction_item.set_active(self.text_prediction_enabled)
         self.tray_prediction_item.connect("toggled", self.on_tray_prediction_toggled)
         tray_menu.append(self.tray_prediction_item)
 
         self.tray_gesture_item = Gtk.CheckMenuItem(
             label="Touch Typing (requires app restart)"
         )
-        self.tray_gesture_item.set_active(self.gesture_enabled)
         self.tray_gesture_item.connect("toggled", self.on_tray_gesture_toggled)
         tray_menu.append(self.tray_gesture_item)
 
         self.tray_visual_feedback_item = Gtk.CheckMenuItem(label="Visual Feedback")
-        self.tray_visual_feedback_item.set_active(self.gesture_visual_feedback_enabled)
-        self.tray_visual_feedback_item.set_sensitive(self.gesture_enabled)
         self.tray_visual_feedback_item.connect(
             "toggled", self.on_tray_visual_feedback_toggled
         )
         tray_menu.append(self.tray_visual_feedback_item)
 
         self.tray_start_minimized_item = Gtk.CheckMenuItem(label="Start Minimized")
-        self.tray_start_minimized_item.set_active(self.start_minimized)
         self.tray_start_minimized_item.connect(
             "toggled", self.on_tray_start_minimized_toggled
         )
@@ -280,7 +803,6 @@ class VirtualKeyboard(Gtk.Window):
                     first_layout_item,
                     layout_label,
                 )
-            item.set_active(layout_key == self.keyboard_layout)
             item.connect("toggled", self.on_tray_layout_toggled, layout_key)
             layout_menu.append(item)
             self.tray_layout_items[layout_key] = item
@@ -293,19 +815,27 @@ class VirtualKeyboard(Gtk.Window):
         about_item.connect("activate", self.on_tray_about)
         tray_menu.append(about_item)
 
+        report_bugs_item = Gtk.MenuItem(label="Report bugs")
+        report_bugs_item.connect("activate", self.on_report_bugs)
+        tray_menu.append(report_bugs_item)
+
         quit_item = Gtk.MenuItem(label="Quit")
         quit_item.connect("activate", self.on_tray_quit)
         tray_menu.append(quit_item)
+
         tray_menu.show_all()
+        self.sync_tray_items()
         return tray_menu
 
     def update_tray_menu(self):
         if self.tray_toggle_item is None:
+            if hasattr(self.tray_icon, "emit_menu_updated"):
+                self.tray_icon.emit_menu_updated()
             return
-        if self.get_visible():
-            self.tray_toggle_item.set_label("Hide")
-        else:
-            self.tray_toggle_item.set_label("Show")
+
+        self.tray_toggle_item.set_label("Hide" if self.get_visible() else "Show")
+        if hasattr(self.tray_icon, "emit_menu_updated"):
+            self.tray_icon.emit_menu_updated()
 
     def on_tray_activate(self, icon):
         if self.get_visible():
@@ -320,6 +850,29 @@ class VirtualKeyboard(Gtk.Window):
         self.on_tray_activate(widget)
 
     def on_statusicon_popup_menu(self, widget, button, activate_time):
+        self.popup_tray_menu(widget, button, activate_time)
+
+    def popup_tray_menu_at_coordinates(self, x, y):
+        if self.tray_menu:
+            root_window = Gdk.get_default_root_window()
+            if root_window is not None:
+                rect = Gdk.Rectangle()
+                rect.x = x
+                rect.y = y
+                rect.width = 1
+                rect.height = 1
+                self.tray_menu.popup_at_rect(
+                    root_window,
+                    rect,
+                    Gdk.Gravity.SOUTH_EAST,
+                    Gdk.Gravity.NORTH_WEST,
+                    None,
+                )
+            else:
+                self.tray_menu.popup_at_pointer(None)
+        return False
+
+    def popup_tray_menu(self, widget, button, activate_time):
         if self.tray_menu:
             self.tray_menu.popup(None, None, widget.position_menu, button, activate_time)
 
@@ -327,40 +880,49 @@ class VirtualKeyboard(Gtk.Window):
         self.on_tray_activate(None)
 
     def on_tray_prediction_toggled(self, widget):
-        self.set_text_prediction_enabled(widget.get_active())
+        if not self._syncing_tray_items:
+            self.set_text_prediction_enabled(widget.get_active())
 
     def on_tray_gesture_toggled(self, widget):
-        if self._syncing_gesture_menu_item:
+        if self._syncing_tray_items:
             return
-
         if widget.get_active():
             self.enable_gesture_typing()
         else:
             self.disable_gesture_typing()
 
     def on_tray_visual_feedback_toggled(self, widget):
-        if self._syncing_visual_feedback_menu_item:
-            return
-
-        self.set_gesture_visual_feedback_enabled(widget.get_active())
+        if not self._syncing_tray_items:
+            self.set_gesture_visual_feedback_enabled(widget.get_active())
 
     def on_tray_start_minimized_toggled(self, widget):
-        self.set_start_minimized(widget.get_active())
+        if not self._syncing_tray_items:
+            self.set_start_minimized(widget.get_active())
 
     def on_tray_layout_toggled(self, widget, layout_key):
-        if self._syncing_layout_menu_items or not widget.get_active():
-            return
+        if not self._syncing_tray_items and widget.get_active():
+            self.set_keyboard_layout(layout_key)
 
-        self.set_keyboard_layout(layout_key)
-
-    def sync_layout_menu_items(self):
-        if not self.tray_layout_items:
-            return
-
-        self._syncing_layout_menu_items = True
-        for layout_key, item in self.tray_layout_items.items():
-            item.set_active(layout_key == self.keyboard_layout)
-        self._syncing_layout_menu_items = False
+    def sync_tray_items(self):
+        self._syncing_tray_items = True
+        try:
+            if self.tray_prediction_item is not None:
+                self.tray_prediction_item.set_active(self.text_prediction_enabled)
+            if self.tray_gesture_item is not None:
+                self.tray_gesture_item.set_active(self.gesture_enabled)
+            if self.tray_visual_feedback_item is not None:
+                self.tray_visual_feedback_item.set_active(
+                    self.gesture_visual_feedback_enabled
+                )
+                self.tray_visual_feedback_item.set_sensitive(self.gesture_enabled)
+            if self.tray_start_minimized_item is not None:
+                self.tray_start_minimized_item.set_active(self.start_minimized)
+            for layout_key, item in self.tray_layout_items.items():
+                item.set_active(layout_key == self.keyboard_layout)
+        finally:
+            self._syncing_tray_items = False
+        if hasattr(self.tray_icon, "emit_menu_updated"):
+            self.tray_icon.emit_menu_updated()
 
     def normalize_keyboard_layout(self, layout_key):
         if layout_key in self.keyboard_layouts:
@@ -429,11 +991,9 @@ class VirtualKeyboard(Gtk.Window):
         self.grid.show_all()
         self.update_suggestion_bar_scale()
 
-    def set_keyboard_layout(self, layout_key, sync_menu=True):
+    def set_keyboard_layout(self, layout_key):
         normalized_layout = self.normalize_keyboard_layout(layout_key)
         if normalized_layout == self.keyboard_layout:
-            if sync_menu:
-                self.sync_layout_menu_items()
             return
 
         self.keyboard_layout = normalized_layout
@@ -446,50 +1006,41 @@ class VirtualKeyboard(Gtk.Window):
         self.clear_suggestion_override(update=False)
         self.current_word = ""
         self.update_suggestions()
-
-        if sync_menu:
-            self.sync_layout_menu_items()
+        self.sync_tray_items()
 
         self.save_settings()
 
-    def sync_gesture_menu_item(self):
-        if self.tray_gesture_item is None:
-            return
-
-        if self.tray_gesture_item.get_active() == self.gesture_enabled:
-            return
-
-        self._syncing_gesture_menu_item = True
-        self.tray_gesture_item.set_active(self.gesture_enabled)
-        self._syncing_gesture_menu_item = False
-
-    def sync_visual_feedback_menu_item(self):
-        if self.tray_visual_feedback_item is None:
-            return
-
-        self.tray_visual_feedback_item.set_sensitive(self.gesture_enabled)
+    def sync_gesture_controls(self):
         if (
-            self.tray_visual_feedback_item.get_active()
-            == self.gesture_visual_feedback_enabled
+            self.settings_gesture_check is not None
+            and self.settings_gesture_check.get_active() != self.gesture_enabled
         ):
-            return
+            self.settings_gesture_check.set_active(self.gesture_enabled)
+        self.sync_tray_items()
 
-        self._syncing_visual_feedback_menu_item = True
-        self.tray_visual_feedback_item.set_active(
-            self.gesture_visual_feedback_enabled
-        )
-        self._syncing_visual_feedback_menu_item = False
+    def sync_visual_feedback_controls(self):
+        if self.settings_visual_feedback_check is not None:
+            self.settings_visual_feedback_check.set_sensitive(self.gesture_enabled)
+            if (
+                self.settings_visual_feedback_check.get_active()
+                != self.gesture_visual_feedback_enabled
+            ):
+                self.settings_visual_feedback_check.set_active(
+                    self.gesture_visual_feedback_enabled
+                )
+        self.sync_tray_items()
 
-    def set_gesture_visual_feedback_enabled(self, enabled, sync_menu=True):
+    def set_gesture_visual_feedback_enabled(self, enabled, sync_controls=True):
         self.gesture_visual_feedback_enabled = bool(enabled)
         if self.gesture_controller is not None:
             self.gesture_controller.set_visual_feedback_enabled(
                 self.gesture_visual_feedback_enabled
             )
-        if sync_menu:
-            self.sync_visual_feedback_menu_item()
+        if sync_controls:
+            self.sync_visual_feedback_controls()
+        self.save_settings()
 
-    def enable_gesture_typing(self, sync_menu=True):
+    def enable_gesture_typing(self, sync_controls=True, save=True):
         if self.gesture_controller is None:
             gesture_module = importlib.import_module(f"{__package__}.gesture")
             self.gesture_controller = gesture_module.GestureTypingController(
@@ -503,11 +1054,13 @@ class VirtualKeyboard(Gtk.Window):
         )
 
         self.gesture_enabled = True
-        if sync_menu:
-            self.sync_gesture_menu_item()
-            self.sync_visual_feedback_menu_item()
+        if sync_controls:
+            self.sync_gesture_controls()
+            self.sync_visual_feedback_controls()
+        if save:
+            self.save_settings()
 
-    def disable_gesture_typing(self, sync_menu=True):
+    def disable_gesture_typing(self, sync_controls=True, save=True):
         had_gesture_commit = (
             self.gesture_controller is not None and self.gesture_controller.has_committed_text()
         )
@@ -522,9 +1075,11 @@ class VirtualKeyboard(Gtk.Window):
             self.update_suggestions()
 
         sys.modules.pop(f"{__package__}.gesture", None)
-        if sync_menu:
-            self.sync_gesture_menu_item()
-            self.sync_visual_feedback_menu_item()
+        if sync_controls:
+            self.sync_gesture_controls()
+            self.sync_visual_feedback_controls()
+        if save:
+            self.save_settings()
 
     def on_tray_about(self, widget):
         about_dialog = Gtk.AboutDialog()
@@ -555,7 +1110,14 @@ class VirtualKeyboard(Gtk.Window):
     def on_tray_quit(self, widget):
         self.exiting = True
         self.save_settings()
+        self.clear_tray_icon()
         self.destroy()
+
+    def on_report_bugs(self, widget=None):
+        self.open_bug_report_url()
+
+    def open_bug_report_url(self):
+        Gio.AppInfo.launch_default_for_uri(BUG_REPORT_URL, None)
 
     def on_delete_event(self, widget, event):
         if self.exiting:
@@ -574,6 +1136,12 @@ class VirtualKeyboard(Gtk.Window):
         self.header.pack_start(self.esc_button)
 
         self.create_button("☰", self.change_visibility, callbacks=1)
+        self.create_button(
+            "Options",
+            self.open_settings_dialog,
+            callbacks=1,
+            hide_with_menu=False,
+        )
         self.create_button("+", self.change_opacity, True, 2)
         self.create_button("-", self.change_opacity, False, 2)
         self.create_button(f"{self.opacity}")
@@ -615,6 +1183,115 @@ class VirtualKeyboard(Gtk.Window):
 
         self.color_combobox.set_active(active_index)
 
+    def open_settings_dialog(self, widget=None):
+        if self.settings_dialog is not None:
+            self.settings_dialog.present()
+            return
+
+        dialog = Gtk.Dialog(
+            title="Options for Vboard",
+            transient_for=self,
+            modal=True,
+        )
+        dialog.add_button("Close", Gtk.ResponseType.CLOSE)
+        dialog.connect("response", self.on_settings_dialog_response)
+        dialog.connect("destroy", self.on_settings_dialog_destroy)
+
+        content = dialog.get_content_area()
+        content.set_border_width(12)
+        grid = Gtk.Grid(column_spacing=12, row_spacing=10)
+        content.add(grid)
+
+        prediction_check = Gtk.CheckButton(label="Text Prediction")
+        prediction_check.set_active(self.text_prediction_enabled)
+        prediction_check.connect("toggled", self.on_settings_prediction_toggled)
+        grid.attach(prediction_check, 0, 0, 2, 1)
+
+        gesture_check = Gtk.CheckButton(
+            label="Touch Typing (requires app restart)"
+        )
+        gesture_check.set_active(self.gesture_enabled)
+        gesture_check.connect("toggled", self.on_settings_gesture_toggled)
+        grid.attach(gesture_check, 0, 1, 2, 1)
+        self.settings_gesture_check = gesture_check
+
+        visual_feedback_check = Gtk.CheckButton(label="Visual Feedback")
+        visual_feedback_check.set_active(self.gesture_visual_feedback_enabled)
+        visual_feedback_check.set_sensitive(self.gesture_enabled)
+        visual_feedback_check.connect(
+            "toggled", self.on_settings_visual_feedback_toggled
+        )
+        grid.attach(visual_feedback_check, 0, 2, 2, 1)
+        self.settings_visual_feedback_check = visual_feedback_check
+
+        start_minimized_check = Gtk.CheckButton(label="Start Minimized")
+        start_minimized_check.set_active(self.start_minimized)
+        start_minimized_check.connect(
+            "toggled", self.on_settings_start_minimized_toggled
+        )
+        grid.attach(start_minimized_check, 0, 3, 2, 1)
+
+        layout_label = Gtk.Label(label="Keyboard Layout", xalign=0)
+        layout_combo = Gtk.ComboBoxText()
+        for layout_key, layout_name in self.keyboard_layout_choices:
+            layout_combo.append(layout_key, layout_name)
+        layout_combo.set_active_id(self.keyboard_layout)
+        layout_combo.connect("changed", self.on_settings_layout_changed)
+        grid.attach(layout_label, 0, 4, 1, 1)
+        grid.attach(layout_combo, 1, 4, 1, 1)
+
+        about_button = Gtk.Button(label="About")
+        about_button.connect("clicked", self.on_settings_about_clicked)
+        report_bugs_button = Gtk.Button(label="Report bugs")
+        report_bugs_button.connect("clicked", self.on_settings_report_bugs_clicked)
+        quit_button = Gtk.Button(label="Quit")
+        quit_button.connect("clicked", self.on_settings_quit_clicked)
+        grid.attach(about_button, 0, 5, 1, 1)
+        grid.attach(report_bugs_button, 1, 5, 1, 1)
+        grid.attach(quit_button, 2, 5, 1, 1)
+
+        self.settings_dialog = dialog
+        dialog.show_all()
+
+    def on_settings_dialog_response(self, dialog, response_id):
+        dialog.destroy()
+
+    def on_settings_dialog_destroy(self, dialog):
+        self.settings_dialog = None
+        self.settings_gesture_check = None
+        self.settings_visual_feedback_check = None
+
+    def on_settings_prediction_toggled(self, widget):
+        self.set_text_prediction_enabled(widget.get_active())
+
+    def on_settings_gesture_toggled(self, widget):
+        if widget.get_active():
+            self.enable_gesture_typing()
+        else:
+            self.disable_gesture_typing()
+        if self.settings_visual_feedback_check is not None:
+            self.settings_visual_feedback_check.set_sensitive(self.gesture_enabled)
+
+    def on_settings_visual_feedback_toggled(self, widget):
+        self.set_gesture_visual_feedback_enabled(widget.get_active())
+
+    def on_settings_start_minimized_toggled(self, widget):
+        self.set_start_minimized(widget.get_active())
+
+    def on_settings_layout_changed(self, widget):
+        layout_key = widget.get_active_id()
+        if layout_key is not None:
+            self.set_keyboard_layout(layout_key)
+
+    def on_settings_about_clicked(self, widget):
+        self.on_tray_about(widget)
+
+    def on_settings_report_bugs_clicked(self, widget):
+        self.open_bug_report_url()
+
+    def on_settings_quit_clicked(self, widget):
+        self.on_tray_quit(widget)
+
     def create_suggestion_buttons(self):
         for _ in range(SUGGESTION_LIMIT):
             button = Gtk.Button()
@@ -647,6 +1324,7 @@ class VirtualKeyboard(Gtk.Window):
         self.update_suggestions()
         if self.text_prediction_enabled:
             GLib.idle_add(self.preload_suggestions)
+        self.sync_tray_items()
 
         self.save_settings()
 
@@ -656,6 +1334,7 @@ class VirtualKeyboard(Gtk.Window):
             return
 
         self.start_minimized = enabled
+        self.sync_tray_items()
         self.save_settings()
 
     def preload_suggestions(self):
@@ -740,7 +1419,14 @@ class VirtualKeyboard(Gtk.Window):
         self.request_keep_above()
         return False
 
-    def create_button(self, label_="", callback=None, callback2=None, callbacks=0):
+    def create_button(
+        self,
+        label_="",
+        callback=None,
+        callback2=None,
+        callbacks=0,
+        hide_with_menu=True,
+    ):
         button = Gtk.Button(label=label_)
         button.set_name("headbar-button")
         if callbacks == 1:
@@ -754,7 +1440,8 @@ class VirtualKeyboard(Gtk.Window):
 
         button.get_style_context().add_class("header-button")
         self.header.pack_end(button)
-        self.buttons.append(button)
+        if hide_with_menu:
+            self.buttons.append(button)
         return button
 
     def change_visibility(self, widget=None):
