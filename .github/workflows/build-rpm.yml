@@ -38,6 +38,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           version="$(rpmspec -q --queryformat '%{version}\n' packaging/rpm/vboard.spec)"
           install -d "$HOME/rpmbuild/SOURCES"
           git archive --format=tar --prefix="vboard-${version}/" HEAD \
