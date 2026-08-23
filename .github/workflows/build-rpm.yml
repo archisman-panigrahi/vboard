@@ -14,6 +14,8 @@ jobs:
   build-rpm:
     runs-on: ubuntu-latest
     container: fedora:44
+    env:
+      RPM_TOPDIR: ${{ github.workspace }}/.rpmbuild
 
     steps:
       - name: Install RPM build tools
@@ -40,20 +42,20 @@ jobs:
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           version="$(rpmspec -q --queryformat '%{version}\n' packaging/rpm/vboard.spec)"
-          source_dir="$(rpm --eval '%{_sourcedir}')"
+          source_dir="$RPM_TOPDIR/SOURCES"
           install -d "$source_dir"
           git archive --format=tar --prefix="vboard-${version}/" HEAD \
             | gzip -n > "$source_dir/vboard-${version}.tar.gz"
 
       - name: Build source and binary RPMs
-        run: rpmbuild -ba packaging/rpm/vboard.spec
+        run: rpmbuild --define "_topdir $RPM_TOPDIR" -ba packaging/rpm/vboard.spec
 
       - name: Collect RPM artifacts
         shell: bash
         run: |
           set -euo pipefail
-          rpm_dir="$(rpm --eval '%{_rpmdir}')"
-          srpm_dir="$(rpm --eval '%{_srcrpmdir}')"
+          rpm_dir="$RPM_TOPDIR/RPMS"
+          srpm_dir="$RPM_TOPDIR/SRPMS"
           install -d artifacts
           cp -v "$rpm_dir"/noarch/*.rpm artifacts/
           cp -v "$srpm_dir"/*.src.rpm artifacts/
