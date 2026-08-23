@@ -9,6 +9,7 @@ from .constants import (
     COLOR_CHOICES,
     DEFAULT_KEYBOARD_LAYOUT,
     ENHANCED_BACKGROUND_PRESET,
+    FUNCTION_KEYS,
     KEY_WIDTHS,
     LAYOUT_SWITCH_KEY,
     LIGHT_BACKGROUND_COLORS,
@@ -599,8 +600,9 @@ class VirtualKeyboard(Gtk.Window):
             self.set_default_size(self.width, self.height)
 
         self.header = Gtk.HeaderBar()
-        self.header.set_title(APP_DISPLAY_NAME)
-        self.header.set_show_close_button(True)
+        self.header.set_title("")
+        self.header.set_has_subtitle(False)
+        self.header.set_show_close_button(False)
         self.buttons = []
         self.header_controls_visible = False
         self.key_buttons = {}
@@ -1264,10 +1266,41 @@ class VirtualKeyboard(Gtk.Window):
         return True
 
     def create_settings(self):
+        self.header_key_box = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            spacing=0,
+        )
+        self.header_key_box.set_name("header-key-box")
+        self.header.pack_start(self.header_key_box)
+
         self.esc_button = Gtk.Button(label="ESC")
         self.esc_button.connect("clicked", lambda widget: self.emit_key("Esc"))
         self.esc_button.set_name("esc-button")
-        self.header.pack_start(self.esc_button)
+        self.header_key_box.pack_start(self.esc_button, False, False, 0)
+
+        self.function_buttons = []
+        for function_key in FUNCTION_KEYS:
+            button = Gtk.Button(label=function_key)
+            button.set_name("function-button")
+            button.connect(
+                "clicked",
+                lambda widget, key=function_key: self.emit_key(key),
+            )
+            self.header_key_box.pack_start(button, False, False, 0)
+            self.function_buttons.append(button)
+
+        self.header_end_box = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            spacing=0,
+        )
+        self.header_end_box.set_name("header-end-box")
+        self.header.pack_end(self.header_end_box)
+
+        self.close_button = Gtk.Button(label="×")
+        self.close_button.set_name("header-close-button")
+        self.close_button.set_tooltip_text("Close")
+        self.close_button.connect("clicked", lambda widget: self.close())
+        self.header_end_box.pack_end(self.close_button, False, False, 0)
 
         self.create_button("☰", self.change_visibility, callbacks=1)
         self.create_button(
@@ -1282,7 +1315,7 @@ class VirtualKeyboard(Gtk.Window):
         self.color_combobox.connect("changed", self.change_color)
         self.color_combobox.set_name("combobox")
         self.color_combobox.set_no_show_all(True)
-        self.header.pack_end(self.color_combobox)
+        self.header_end_box.pack_end(self.color_combobox, False, False, 0)
 
         for label, _color in COLOR_CHOICES:
             self.color_combobox.append_text(label)
@@ -1574,7 +1607,7 @@ class VirtualKeyboard(Gtk.Window):
             self.opacity_btn.set_tooltip_text("opacity")
 
         button.get_style_context().add_class("header-button")
-        self.header.pack_end(button)
+        self.header_end_box.pack_end(button, False, False, 0)
         if hide_with_menu:
             self.buttons.append(button)
             if label_ != "☰":
@@ -1586,6 +1619,8 @@ class VirtualKeyboard(Gtk.Window):
 
     def set_header_controls_visible(self, visible):
         self.header_controls_visible = bool(visible)
+        for button in self.function_buttons:
+            button.set_visible(not self.header_controls_visible)
         for button in self.buttons:
             if button.get_label() != "☰":
                 button.set_visible(self.header_controls_visible)
@@ -1717,16 +1752,16 @@ class VirtualKeyboard(Gtk.Window):
                 border: 0px;
                 border-bottom: 1px solid {rgba((8, 12, 19), 0.9)};
                 box-shadow: none;
-                padding: 4px 6px;
+                padding: 3px 4px;
             }}
 
             #vboard-main headerbar button {{
-                min-width: 40px;
+                min-width: 36px;
                 min-height: 34px;
                 padding: 0px;
                 border: 1px solid {rgba((13, 21, 33), 1.0)};
                 border-radius: 8px;
-                margin: 0px 2px;
+                margin: 0px 1px;
                 color: {rgba((239, 243, 250), 1.0)};
                 background-color: {rgba((38, 49, 66), 1.0)};
                 background-image: linear-gradient(
@@ -1739,8 +1774,13 @@ class VirtualKeyboard(Gtk.Window):
             }}
 
             #vboard-main headerbar .titlebutton {{
-                min-width: 50px;
-                min-height: 40px;
+                min-width: 36px;
+                min-height: 34px;
+            }}
+
+            #vboard-main headerbar .title {{
+                min-width: 0px;
+                padding: 0px;
             }}
 
             #vboard-main headerbar button:hover,
@@ -1850,7 +1890,7 @@ class VirtualKeyboard(Gtk.Window):
             }}
 
             #vboard-main #esc-button {{
-                min-width: 60px;
+                min-width: 52px;
                 min-height: 34px;
                 border: 1px solid {rgba((17, 24, 36), 1.0)};
                 border-radius: 8px;
@@ -1871,6 +1911,18 @@ class VirtualKeyboard(Gtk.Window):
                     {rgba((97, 112, 139), 1.0)},
                     {rgba((54, 65, 86), 1.0)}
                 );
+            }}
+
+            #vboard-main #function-button {{
+                min-width: 34px;
+                min-height: 34px;
+                font-size: 13px;
+            }}
+
+            #vboard-main #header-close-button {{
+                min-width: 36px;
+                min-height: 34px;
+                font-size: 18px;
             }}
 
             #vboard-main tooltip {{
@@ -1947,16 +1999,16 @@ class VirtualKeyboard(Gtk.Window):
                 background-color: {rgba(header_rgb, 1.0)};
                 border: 0px;
                 box-shadow: none;
-                padding: 4px 6px;
+                padding: 3px 4px;
             }}
 
             #vboard-main headerbar button {{
-                min-width: 40px;
+                min-width: 36px;
                 min-height: 34px;
                 padding: 0px;
                 border: 1px solid transparent;
                 border-radius: 6px;
-                margin: 0px 2px;
+                margin: 0px 1px;
                 color: rgb({rgb_css(text_rgb)});
                 background-color: transparent;
                 background-image: none;
@@ -1964,8 +2016,13 @@ class VirtualKeyboard(Gtk.Window):
             }}
 
             #vboard-main headerbar .titlebutton {{
-                min-width: 50px;
-                min-height: 40px;
+                min-width: 36px;
+                min-height: 34px;
+            }}
+
+            #vboard-main headerbar .title {{
+                min-width: 0px;
+                padding: 0px;
             }}
 
             #vboard-main headerbar button:hover,
@@ -2045,7 +2102,7 @@ class VirtualKeyboard(Gtk.Window):
             }}
 
             #vboard-main #esc-button {{
-                min-width: 60px;
+                min-width: 52px;
                 min-height: 34px;
                 border: 1px solid transparent;
                 border-radius: 6px;
@@ -2057,6 +2114,18 @@ class VirtualKeyboard(Gtk.Window):
             #vboard-main #esc-button:hover {{
                 border: 1px solid {accent};
                 background-color: {rgba(hover_rgb, 1.0)};
+            }}
+
+            #vboard-main #function-button {{
+                min-width: 34px;
+                min-height: 34px;
+                font-size: 13px;
+            }}
+
+            #vboard-main #header-close-button {{
+                min-width: 36px;
+                min-height: 34px;
+                font-size: 18px;
             }}
 
             #vboard-main tooltip {{
@@ -2111,19 +2180,26 @@ class VirtualKeyboard(Gtk.Window):
                 background-color: rgba({self.bg_color}, {self.opacity});
                 border: 0px;
                 box-shadow: none;
+                padding: 3px 4px;
             }}
 
             #vboard-main headerbar button {{
-                min-width: 40px;
+                min-width: 36px;
+                min-height: 34px;
                 padding: 0px;
                 border: 0px;
-                margin: 0px;
+                margin: 0px 1px;
                 {gnome_specific}
             }}
 
             #vboard-main headerbar .titlebutton {{
-                min-width: 50px;
-                min-height: 40px;
+                min-width: 36px;
+                min-height: 34px;
+            }}
+
+            #vboard-main headerbar .title {{
+                min-width: 0px;
+                padding: 0px;
             }}
 
             #vboard-main headerbar button label {{
@@ -2179,13 +2255,26 @@ class VirtualKeyboard(Gtk.Window):
             }}
 
             #vboard-main #esc-button {{
-                min-width: 60px;
+                min-width: 52px;
+                min-height: 34px;
                 border: 1px solid {self.text_color};
                 background-image: none;
             }}
 
             #vboard-main #esc-button:hover {{
                 border: 1px solid #00CACB;
+            }}
+
+            #vboard-main #function-button {{
+                min-width: 34px;
+                min-height: 34px;
+                font-size: 13px;
+            }}
+
+            #vboard-main #header-close-button {{
+                min-width: 36px;
+                min-height: 34px;
+                font-size: 18px;
             }}
 
             #vboard-main tooltip {{

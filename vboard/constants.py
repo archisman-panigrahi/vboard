@@ -13,6 +13,8 @@ MODIFIER_KEYS = (
     "Super_R",
 )
 
+FUNCTION_KEYS = tuple(f"F{number}" for number in range(1, 13))
+
 LAYOUT_SWITCH_KEY = "Layout"
 SPACER_KEY_PREFIX = "Spacer:"
 NAVIGATION_ROW_KEYS = ("Delete", "PageUp", "PageDown")
