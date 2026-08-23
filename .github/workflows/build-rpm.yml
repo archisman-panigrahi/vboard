@@ -1,0 +1,67 @@
+name: Build Fedora RPM
+
+'on':
+  pull_request:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-rpm:
+    runs-on: ubuntu-latest
+    container: fedora:44
+
+    steps:
+      - name: Install RPM build tools
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            'dnf-command(builddep)' \
+            git \
+            gh \
+            gzip \
+            rpm-build \
+            tar
+
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          dnf builddep -y --setopt=install_weak_deps=False \
+            packaging/rpm/vboard.spec
+
+      - name: Create source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(rpmspec -q --queryformat '%{version}\n' packaging/rpm/vboard.spec)"
+          install -d "$HOME/rpmbuild/SOURCES"
+          git archive --format=tar --prefix="vboard-${version}/" HEAD \
+            | gzip -n > "$HOME/rpmbuild/SOURCES/vboard-${version}.tar.gz"
+
+      - name: Build source and binary RPMs
+        run: rpmbuild -ba packaging/rpm/vboard.spec
+
+      - name: Collect RPM artifacts
+        run: |
+          install -d artifacts
+          cp -v "$HOME"/rpmbuild/RPMS/noarch/*.rpm artifacts/
+          cp -v "$HOME"/rpmbuild/SRPMS/*.src.rpm artifacts/
+
+      - name: Upload RPM artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: vboard-rpm-fedora-44-${{ github.sha }}
+          path: artifacts/*.rpm
+          if-no-files-found: error
+
+      - name: Upload RPMs to GitHub release
+        if: github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" artifacts/*.rpm --clobber

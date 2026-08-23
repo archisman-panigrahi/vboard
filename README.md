@@ -100,6 +100,12 @@ Optional for word suggestions:
 sudo dnf install hunspell-en-US hunspell-uk
 ```
 
+Release builds also provide `vboard` and `vboard-plasma` RPMs for Fedora 44.
+Install both packages for the keyboard and its optional Plasma widget. On an
+immutable Bazzite system, local RPMs must be layered with `rpm-ostree` and take
+effect after a reboot; use the user-only source installation below if you want
+to avoid package layering.
+
 In Fedora KDE, you will also have to create a symlink for qdbus
 ```
 sudo ln -sf /usr/bin/qdbus-qt6 /usr/local/bin/qdbus6
