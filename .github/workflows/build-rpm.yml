@@ -40,18 +40,23 @@ jobs:
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           version="$(rpmspec -q --queryformat '%{version}\n' packaging/rpm/vboard.spec)"
-          install -d "$HOME/rpmbuild/SOURCES"
+          source_dir="$(rpm --eval '%{_sourcedir}')"
+          install -d "$source_dir"
           git archive --format=tar --prefix="vboard-${version}/" HEAD \
-            | gzip -n > "$HOME/rpmbuild/SOURCES/vboard-${version}.tar.gz"
+            | gzip -n > "$source_dir/vboard-${version}.tar.gz"
 
       - name: Build source and binary RPMs
         run: rpmbuild -ba packaging/rpm/vboard.spec
 
       - name: Collect RPM artifacts
+        shell: bash
         run: |
+          set -euo pipefail
+          rpm_dir="$(rpm --eval '%{_rpmdir}')"
+          srpm_dir="$(rpm --eval '%{_srcrpmdir}')"
           install -d artifacts
-          cp -v "$HOME"/rpmbuild/RPMS/noarch/*.rpm artifacts/
-          cp -v "$HOME"/rpmbuild/SRPMS/*.src.rpm artifacts/
+          cp -v "$rpm_dir"/noarch/*.rpm artifacts/
+          cp -v "$srpm_dir"/*.src.rpm artifacts/
 
       - name: Upload RPM artifacts
         uses: actions/upload-artifact@v7
