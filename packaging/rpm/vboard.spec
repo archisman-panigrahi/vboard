@@ -1,5 +1,5 @@
 Name:           vboard
-Version:        2.7.0
+Version:        2.7.1
 Release:        1%{?dist}
 Summary:        Wayland virtual keyboard with modifier key support
 
@@ -89,5 +89,5 @@ python3 -m unittest discover -s tests -v
 
 
 %changelog
-* Sun Aug 23 2026 Chechulin Serhii <78239416+keefeere@users.noreply.github.com> - 2.7.0-1
-- Add the initial Fedora RPM package
+* Sun Aug 23 2026 Chechulin Serhii <78239416+keefeere@users.noreply.github.com> - 2.7.1-1
+- Add Ukrainian layout, Plasma integration, and Fedora packaging

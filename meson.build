@@ -1,4 +1,4 @@
-project('vboard', version: '1.3')
+project('vboard', version: '2.7.1')
 
 vboard_data_dir = join_paths(get_option('datadir'), 'vboard')
 vboard_python_dir = join_paths(vboard_data_dir, 'vboard')
