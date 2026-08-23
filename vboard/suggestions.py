@@ -1,11 +1,31 @@
 import bisect
 import os
 
-from .constants import SUGGESTION_LIMIT, SUPPORTED_WORD_CHARS
+from .constants import SUGGESTION_LIMIT, SUPPORTED_WORD_CONNECTORS
+
+
+LAYOUT_DICTIONARIES = {
+    "de": ("de_DE", "de"),
+    "en": ("en_US", "en_GB", "en"),
+    "fr": ("fr_FR", "fr"),
+    "ru": ("ru_RU", "ru"),
+    "sv": ("sv_SE", "sv"),
+    "uk": ("uk_UA", "uk"),
+}
 
 
 class HunspellSuggestionEngine:
-    def __init__(self):
+    def __init__(self, layout_id="en"):
+        self.layout_id = layout_id
+        self.words = []
+        self.dictionary_path = None
+        self.loaded = False
+
+    def set_layout(self, layout_id):
+        if layout_id == self.layout_id:
+            return
+
+        self.layout_id = layout_id
         self.words = []
         self.dictionary_path = None
         self.loaded = False
@@ -37,9 +57,12 @@ class HunspellSuggestionEngine:
         self.words = sorted(words)
 
     def get_suggestions(self, prefix, limit=SUGGESTION_LIMIT):
-        self.ensure_loaded()
         prefix = self.normalize_word(prefix)
-        if not prefix or not self.words:
+        if not prefix:
+            return []
+
+        self.ensure_loaded()
+        if not self.words:
             return []
 
         start_index = bisect.bisect_left(self.words, prefix)
@@ -75,20 +98,12 @@ class HunspellSuggestionEngine:
                 if os.path.isfile(path):
                     return path
 
-        for directory in search_dirs:
-            if not os.path.isdir(directory):
-                continue
-
-            try:
-                for entry in sorted(os.listdir(directory)):
-                    if entry.endswith(".dic"):
-                        return os.path.join(directory, entry)
-            except OSError:
-                continue
-
         return None
 
     def get_dictionary_candidates(self):
+        if self.layout_id in LAYOUT_DICTIONARIES:
+            return list(LAYOUT_DICTIONARIES[self.layout_id])
+
         candidates = []
         for value in (
             os.environ.get("LC_ALL", ""),
@@ -110,8 +125,6 @@ class HunspellSuggestionEngine:
                 candidates.append(locale_name)
                 if "_" in locale_name:
                     candidates.append(locale_name.split("_", 1)[0])
-
-        candidates.extend(["en_US", "en_GB", "en"])
 
         ordered = []
         seen = set()
@@ -147,13 +160,16 @@ class HunspellSuggestionEngine:
         return self.normalize_word("".join(word_chars))
 
     def normalize_word(self, word):
-        if not word or not word.isascii():
+        if not word:
             return None
 
-        normalized = word.strip().lower()
+        normalized = word.strip().casefold().replace("\u2019", "'").replace("\u02bc", "'")
         if len(normalized) < 2:
             return None
-        if any(char not in SUPPORTED_WORD_CHARS for char in normalized):
+        if any(
+            not char.isalpha() and char not in SUPPORTED_WORD_CONNECTORS
+            for char in normalized
+        ):
             return None
         if not any(char.isalpha() for char in normalized):
             return None

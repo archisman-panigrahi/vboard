@@ -27,8 +27,9 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 - **Modifier key support**: Provide Ctrl, Alt, Tab and Super (Meta/Win) keys
 - **Desktop compatibility**: Native Wayland-friendly behavior on KDE Plasma, with GNOME support via Xwayland fallback
 - **Hold for repetitive clicks**: Keep holding the mouse button to trigger repeated clicks
-- **Word suggestions**: Offers completions from an installed Hunspell dictionary while you type with vboard
-- **Gesture typing**: Swipe across letter keys and vboard will decode the path into a word
+- **Word suggestions**: Offers Unicode completions from the Hunspell dictionary that matches the active vboard layout
+- **Gesture typing**: Swipe across letter keys in English or Ukrainian and vboard will decode the path into a word
+- **Plasma widget**: Includes an optional one-click panel/desktop widget for showing or hiding vboard
 - **Compact interface**: Headerbar with minimal controls to save screen space
 - **Tray icon support**: Keeps vboard running in the background and you can quickly reopen it when needed
 - **uinput input backend**: Injects keys through Linux `uinput`
@@ -96,7 +97,7 @@ sudo dnf install python3-gobject python3-cairo gtk3 python3-uinput python3-setup
 ```
 Optional for word suggestions:
 ```bash
-sudo dnf install hunspell-en-US
+sudo dnf install hunspell-en-US hunspell-uk
 ```
 
 In Fedora KDE, you will also have to create a symlink for qdbus
@@ -166,12 +167,24 @@ sudo meson compile -C builddir uninstall-local
 
 After installation, open **System Settings**, search for **Virtual Keyboard**, and select **Vboard**.
 
+### KDE Plasma: install the toggle widget
+
+Install the included Plasma 6 widget for the current user:
+
+```bash
+kpackagetool6 --type Plasma/Applet --install plasmoid/package
+```
+
+Then open Plasma's **Add Widgets** view, search for **Vboard Keyboard**, and drag
+it onto a panel or the desktop. Use `--upgrade` instead of `--install` after
+changing the widget source.
+
 ## Usage
 When launched, vboard presents a compact keyboard with a minimal interface. The keyboard includes:
 - Standard QWERTY layout keys
 - Arrow keys
 - Modifier keys (Shift, Ctrl, Alt, Super)
-- Header-bar suggestions that appear while typing words through vboard when a system Hunspell dictionary is available
+- Header-bar suggestions that follow vboard's active layout when a matching system or user Hunspell dictionary is available
 - Experimental swipe typing on alphabetic keys: drag across the intended letters and release to insert the best matching dictionary word
 
 ### Interface Controls
@@ -196,6 +209,11 @@ vboard saves its settings to `~/.config/vboard/settings.conf`. This configuratio
 - Text color
 
 You can manually edit this file or use the built-in interface controls to customize vboard.
+
+Hunspell dictionaries are searched in `~/.local/share/hunspell/`,
+`~/.hunspell/`, and the usual system dictionary directories. For example, the
+Ukrainian layout looks for `uk_UA.dic` or `uk.dic` and the English layout looks
+for `en_US.dic`, `en_GB.dic`, or `en.dic`.
 
 ## Customizing Keyboard Layout
 Keyboard layouts are JSON files. Packaged layouts are installed to:

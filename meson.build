@@ -36,6 +36,7 @@ install_data(
     'vboard/gtk.py',
     'vboard/input_backends.py',
     'vboard/layouts.py',
+    'vboard/plasma_layouts.py',
     'vboard/suggestions.py',
     'vboard/window.py',
   ),
