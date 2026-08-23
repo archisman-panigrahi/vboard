@@ -604,6 +604,7 @@ class VirtualKeyboard(Gtk.Window):
         self.header.set_has_subtitle(False)
         self.header.set_show_close_button(False)
         self.buttons = []
+        self.header_buttons = []
         self.header_controls_visible = False
         self.key_buttons = {}
         self.modifier_buttons = {}
@@ -1276,6 +1277,7 @@ class VirtualKeyboard(Gtk.Window):
         self.esc_button = Gtk.Button(label="ESC")
         self.esc_button.connect("clicked", lambda widget: self.emit_key("Esc"))
         self.esc_button.set_name("esc-button")
+        self.register_header_button(self.esc_button)
         self.header_key_box.pack_start(self.esc_button, False, False, 0)
 
         self.function_buttons = []
@@ -1286,6 +1288,7 @@ class VirtualKeyboard(Gtk.Window):
                 "clicked",
                 lambda widget, key=function_key: self.emit_key(key),
             )
+            self.register_header_button(button)
             self.header_key_box.pack_start(button, False, False, 0)
             self.function_buttons.append(button)
 
@@ -1300,6 +1303,7 @@ class VirtualKeyboard(Gtk.Window):
         self.close_button.set_name("header-close-button")
         self.close_button.set_tooltip_text("Close")
         self.close_button.connect("clicked", lambda widget: self.close())
+        self.register_header_button(self.close_button)
         self.header_end_box.pack_end(self.close_button, False, False, 0)
 
         self.create_button("☰", self.change_visibility, callbacks=1)
@@ -1607,12 +1611,32 @@ class VirtualKeyboard(Gtk.Window):
             self.opacity_btn.set_tooltip_text("opacity")
 
         button.get_style_context().add_class("header-button")
+        self.register_header_button(button)
         self.header_end_box.pack_end(button, False, False, 0)
         if hide_with_menu:
             self.buttons.append(button)
             if label_ != "☰":
                 button.set_no_show_all(True)
         return button
+
+    def register_header_button(self, button):
+        button.set_can_focus(False)
+        button.set_focus_on_click(False)
+        button.connect_after("clicked", self.on_header_button_clicked)
+        self.header_buttons.append(button)
+
+    def on_header_button_clicked(self, widget):
+        GLib.idle_add(self.clear_header_button_visual_states)
+
+    def clear_header_button_visual_states(self):
+        stale_flags = (
+            Gtk.StateFlags.ACTIVE
+            | Gtk.StateFlags.PRELIGHT
+            | Gtk.StateFlags.FOCUSED
+        )
+        for button in self.header_buttons:
+            button.unset_state_flags(stale_flags)
+        return False
 
     def change_visibility(self, widget=None):
         self.set_header_controls_visible(not self.header_controls_visible)
@@ -1914,7 +1938,7 @@ class VirtualKeyboard(Gtk.Window):
             }}
 
             #vboard-main #function-button {{
-                min-width: 34px;
+                min-width: 36px;
                 min-height: 34px;
                 font-size: 13px;
             }}
@@ -2117,7 +2141,7 @@ class VirtualKeyboard(Gtk.Window):
             }}
 
             #vboard-main #function-button {{
-                min-width: 34px;
+                min-width: 36px;
                 min-height: 34px;
                 font-size: 13px;
             }}
@@ -2266,7 +2290,7 @@ class VirtualKeyboard(Gtk.Window):
             }}
 
             #vboard-main #function-button {{
-                min-width: 34px;
+                min-width: 36px;
                 min-height: 34px;
                 font-size: 13px;
             }}
