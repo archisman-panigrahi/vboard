@@ -37,19 +37,30 @@ class VboardApplication(Gtk.Application):
             self.window.connect("configure-event", self.window.on_resize)
             if self.window.config_pos_x > 0 and self.window.config_pos_y > 0:
                 self.window.move(self.window.config_pos_x, self.window.config_pos_y)
-            self.window.show_all()
-            self.window.change_visibility()
-            if self.window.start_minimized and self.window.tray_icon is not None:
-                self.window.hide()
+            self.window.set_header_controls_visible(False)
             self.window.update_tray_menu()
         return self.window
 
-    def do_activate(self):
-        window = self.ensure_window()
+    def show_window(self, window):
         window.show_all()
+        window.set_header_controls_visible(False)
         window.present()
         window.request_keep_above()
         window.update_tray_menu()
+
+    def do_activate(self):
+        is_initial_activation = self.window is None
+        window = self.ensure_window()
+        if (
+            is_initial_activation
+            and window.start_minimized
+            and window.tray_icon is not None
+        ):
+            window.hide()
+            window.update_tray_menu()
+            return
+
+        self.show_window(window)
 
     def do_command_line(self, command_line):
         args = command_line.get_arguments()[1:]
@@ -59,7 +70,8 @@ class VboardApplication(Gtk.Application):
 
         if args == ["--toggle"]:
             if self.window is None:
-                self.activate()
+                window = self.ensure_window()
+                self.show_window(window)
             else:
                 self.window.toggle_visibility()
             return 0

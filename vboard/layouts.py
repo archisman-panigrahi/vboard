@@ -7,6 +7,9 @@ from .constants import DEFAULT_KEYBOARD_LAYOUT
 SYSTEM_LAYOUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "layouts")
 USER_LAYOUT_DIR = os.path.expanduser("~/.config/vboard/layouts")
 REQUIRED_LAYOUT_FIELDS = ("id", "label", "rows")
+LAYOUT_SHORT_LABELS = {
+    "uk": "UA",
+}
 
 
 def get_layout_directories(user_layout_dir=USER_LAYOUT_DIR):
@@ -109,3 +112,23 @@ def get_default_layout_key(layouts):
     if DEFAULT_KEYBOARD_LAYOUT in layouts:
         return DEFAULT_KEYBOARD_LAYOUT
     return next(iter(layouts))
+
+
+def get_layout_short_label(layout_id):
+    if layout_id in LAYOUT_SHORT_LABELS:
+        return LAYOUT_SHORT_LABELS[layout_id]
+    if layout_id.isascii() and layout_id.isalpha() and 2 <= len(layout_id) <= 3:
+        return layout_id.upper()
+    return None
+
+
+def get_layout_switch_label(primary_layout, secondary_layout):
+    primary_label = get_layout_short_label(primary_layout)
+    secondary_label = get_layout_short_label(secondary_layout)
+    if (
+        primary_layout == secondary_layout
+        or primary_label is None
+        or secondary_label is None
+    ):
+        return "🌐"
+    return f"{secondary_label}/{primary_label}"
