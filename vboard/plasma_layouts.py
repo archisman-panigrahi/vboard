@@ -18,17 +18,9 @@ XKB_TO_VBOARD_LAYOUT = {
     for vboard_layout, xkb_layout in VBOARD_TO_XKB_LAYOUT.items()
 }
 
-PREFERRED_QUICK_LAYOUTS = ("en", "uk")
-
-
 def get_next_quick_layout(current_layout, available_layouts):
-    available_layouts = set(available_layouts)
-    available = tuple(
-        layout
-        for layout in PREFERRED_QUICK_LAYOUTS
-        if layout in available_layouts
-    )
-    if not available:
+    available = tuple(dict.fromkeys(available_layouts))
+    if len(available) < 2:
         return None
     if current_layout not in available:
         return available[0]

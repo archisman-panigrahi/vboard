@@ -196,6 +196,7 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 ### Interface Controls
 - ☰ (menu) - Toggle visibility of other interface controls
 - **Options** - Open in-app options for typing, startup, layout, about, bug reports, and quit actions
+- **UA/EN, RU/EN, …** - Switch between English and the secondary layout selected in Options
 - `+ -` Increase opacity
 - `- -` Decrease opacity
 - **Background dropdown** - Change the keyboard background color or pick an enhanced color theme
@@ -211,6 +212,7 @@ vboard saves its settings to `~/.config/vboard/settings.conf`. This configuratio
 - Gesture typing enabled/disabled state
 - Start minimized enabled/disabled state
 - Keyboard layout
+- Secondary keyboard layout used by the quick-switch key
 - Opacity level
 - Text color
 

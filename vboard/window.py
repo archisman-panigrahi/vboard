@@ -7,7 +7,6 @@ from .constants import (
     APP_DISPLAY_NAME,
     COMMAND_MODIFIER_KEYS,
     COLOR_CHOICES,
-    DEFAULT_KEYBOARD_LAYOUT,
     ENHANCED_BACKGROUND_PRESET,
     FUNCTION_KEYS,
     KEY_WIDTHS,
@@ -33,7 +32,12 @@ from .gtk import (
     Gtk,
 )
 from .input_backends import NullInputBackend, UInputBackend
-from .layouts import get_default_layout_key, get_layout_choices, load_keyboard_layouts
+from .layouts import (
+    get_default_layout_key,
+    get_layout_choices,
+    get_layout_switch_label,
+    load_keyboard_layouts,
+)
 from .plasma_layouts import PlasmaLayoutController, get_next_quick_layout
 from .suggestions import HunspellSuggestionEngine
 
@@ -581,6 +585,7 @@ class VirtualKeyboard(Gtk.Window):
             os.path.join(self.CONFIG_DIR, "layouts")
         )
         self.keyboard_layout_choices = get_layout_choices(self.keyboard_layouts)
+        self.primary_keyboard_layout = get_default_layout_key(self.keyboard_layouts)
 
         self.bg_color = "0,0,0"
         self.opacity = "0.90"
@@ -590,7 +595,8 @@ class VirtualKeyboard(Gtk.Window):
         self.gesture_enabled = True
         self.gesture_visual_feedback_enabled = True
         self.start_minimized = False
-        self.keyboard_layout = DEFAULT_KEYBOARD_LAYOUT
+        self.keyboard_layout = self.primary_keyboard_layout
+        self.secondary_keyboard_layout = self.get_default_secondary_keyboard_layout()
         self.plasma_layout_controller = None
         self.read_settings()
         self.initialize_plasma_layout_sync()
@@ -951,6 +957,34 @@ class VirtualKeyboard(Gtk.Window):
             return layout_key
         return get_default_layout_key(self.keyboard_layouts)
 
+    def get_default_secondary_keyboard_layout(self):
+        if "uk" in self.keyboard_layouts and "uk" != self.primary_keyboard_layout:
+            return "uk"
+        return next(
+            (
+                layout_key
+                for layout_key in self.keyboard_layouts
+                if layout_key != self.primary_keyboard_layout
+            ),
+            self.primary_keyboard_layout,
+        )
+
+    def normalize_secondary_keyboard_layout(self, layout_key):
+        if (
+            layout_key in self.keyboard_layouts
+            and layout_key != self.primary_keyboard_layout
+        ):
+            return layout_key
+        return self.get_default_secondary_keyboard_layout()
+
+    def get_secondary_keyboard_layout_choices(self):
+        choices = tuple(
+            choice
+            for choice in self.keyboard_layout_choices
+            if choice[0] != self.primary_keyboard_layout
+        )
+        return choices or self.keyboard_layout_choices
+
     def get_layout_config(self):
         return self.keyboard_layouts[self.keyboard_layout]
 
@@ -1101,14 +1135,20 @@ class VirtualKeyboard(Gtk.Window):
             self.set_keyboard_layout(layout_key, sync_system=False)
 
     def get_quick_layout_choices(self):
-        available_layouts = self.keyboard_layouts.keys()
+        quick_layouts = (
+            self.primary_keyboard_layout,
+            self.secondary_keyboard_layout,
+        )
+        available_layouts = set(self.keyboard_layouts)
         if self.plasma_layout_controller is not None:
-            available_layouts = (
-                layout
-                for layout in self.plasma_layout_controller.get_available_vboard_layouts()
-                if layout in self.keyboard_layouts
+            available_layouts = set(
+                self.plasma_layout_controller.get_available_vboard_layouts()
             )
-        return tuple(available_layouts)
+        return tuple(
+            layout_key
+            for layout_key in quick_layouts
+            if layout_key in available_layouts
+        )
 
     def switch_to_next_keyboard_layout(self):
         next_layout = get_next_quick_layout(
@@ -1145,6 +1185,15 @@ class VirtualKeyboard(Gtk.Window):
             GLib.idle_add(self.preload_suggestions)
         self.sync_tray_items()
 
+        self.save_settings()
+
+    def set_secondary_keyboard_layout(self, layout_key):
+        normalized_layout = self.normalize_secondary_keyboard_layout(layout_key)
+        if normalized_layout == self.secondary_keyboard_layout:
+            return
+
+        self.secondary_keyboard_layout = normalized_layout
+        self.update_key_labels()
         self.save_settings()
 
     def sync_gesture_controls(self):
@@ -1404,12 +1453,12 @@ class VirtualKeyboard(Gtk.Window):
         )
         grid.attach(start_minimized_check, 0, 3, 2, 1)
 
-        layout_label = Gtk.Label(label="Keyboard Layout", xalign=0)
+        layout_label = Gtk.Label(label="Secondary Layout", xalign=0)
         layout_combo = Gtk.ComboBoxText()
-        for layout_key, layout_name in self.keyboard_layout_choices:
+        for layout_key, layout_name in self.get_secondary_keyboard_layout_choices():
             layout_combo.append(layout_key, layout_name)
-        layout_combo.set_active_id(self.keyboard_layout)
-        layout_combo.connect("changed", self.on_settings_layout_changed)
+        layout_combo.set_active_id(self.secondary_keyboard_layout)
+        layout_combo.connect("changed", self.on_settings_secondary_layout_changed)
         grid.attach(layout_label, 0, 4, 1, 1)
         grid.attach(layout_combo, 1, 4, 1, 1)
 
@@ -1451,10 +1500,10 @@ class VirtualKeyboard(Gtk.Window):
     def on_settings_start_minimized_toggled(self, widget):
         self.set_start_minimized(widget.get_active())
 
-    def on_settings_layout_changed(self, widget):
+    def on_settings_secondary_layout_changed(self, widget):
         layout_key = widget.get_active_id()
         if layout_key is not None:
-            self.set_keyboard_layout(layout_key)
+            self.set_secondary_keyboard_layout(layout_key)
 
     def on_settings_about_clicked(self, widget):
         self.on_tray_about(widget)
@@ -2379,7 +2428,7 @@ class VirtualKeyboard(Gtk.Window):
             button.connect("button-release-event", self.on_key_button_release_event, key_event)
             button.connect("leave-notify-event", self.on_key_button_leave_notify_event)
             if key_event == LAYOUT_SWITCH_KEY:
-                button.set_tooltip_text("Switch between Ukrainian and English")
+                button.set_tooltip_text(self.get_layout_switch_tooltip())
             self.key_buttons[key_event] = button
             if key_event in self.modifiers:
                 self.modifier_buttons[key_event] = button
@@ -2389,7 +2438,10 @@ class VirtualKeyboard(Gtk.Window):
 
     def get_button_label(self, key_event):
         if key_event == LAYOUT_SWITCH_KEY:
-            return "UA/EN"
+            return get_layout_switch_label(
+                self.primary_keyboard_layout,
+                self.secondary_keyboard_layout,
+            )
 
         navigation_labels = {
             "Delete": "Del",
@@ -2422,6 +2474,15 @@ class VirtualKeyboard(Gtk.Window):
     def update_key_labels(self):
         for key_label, button in self.key_buttons.items():
             button.set_label(self.get_button_label(key_label))
+            if key_label == LAYOUT_SWITCH_KEY:
+                button.set_tooltip_text(self.get_layout_switch_tooltip())
+
+    def get_layout_switch_tooltip(self):
+        primary_label = self.keyboard_layouts[self.primary_keyboard_layout]["label"]
+        secondary_label = self.keyboard_layouts[self.secondary_keyboard_layout][
+            "label"
+        ]
+        return f"Switch between {primary_label} and {secondary_label}"
 
     def update_modifier(self, key_event, value):
         self.modifiers[key_event] = value
@@ -2798,11 +2859,26 @@ class VirtualKeyboard(Gtk.Window):
                     "start_minimized",
                     fallback=False,
                 )
-                self.keyboard_layout = self.normalize_keyboard_layout(
+                saved_keyboard_layout = self.normalize_keyboard_layout(
                     self.config.get(
                         "DEFAULT",
                         "keyboard_layout",
-                        fallback=DEFAULT_KEYBOARD_LAYOUT,
+                        fallback=self.primary_keyboard_layout,
+                    )
+                )
+                self.keyboard_layout = saved_keyboard_layout
+                secondary_fallback = (
+                    saved_keyboard_layout
+                    if saved_keyboard_layout != self.primary_keyboard_layout
+                    else self.secondary_keyboard_layout
+                )
+                self.secondary_keyboard_layout = (
+                    self.normalize_secondary_keyboard_layout(
+                        self.config.get(
+                            "DEFAULT",
+                            "secondary_keyboard_layout",
+                            fallback=secondary_fallback,
+                        )
                     )
                 )
                 self.width = self.config.getint("DEFAULT", "width", fallback=0)
@@ -2834,6 +2910,7 @@ class VirtualKeyboard(Gtk.Window):
                 self.gesture_visual_feedback_enabled
             ),
             "keyboard_layout": self.keyboard_layout,
+            "secondary_keyboard_layout": self.secondary_keyboard_layout,
             "width": self.width,
             "height": self.height,
             "pos_x": str(self.pos_x),
