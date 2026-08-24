@@ -14,6 +14,7 @@ from .constants import (
     LAYOUT_SWITCH_KEY,
     LIGHT_BACKGROUND_COLORS,
     MODIFIER_KEYS,
+    NAVIGATION_KEYS,
     NAVIGATION_ROW_KEYS,
     ONBOARD_BACKGROUND_PRESET,
     SPACER_KEY_PREFIX,
@@ -977,11 +978,11 @@ class VirtualKeyboard(Gtk.Window):
             if up_column is not None and up_column < down_column:
                 self.insert_spacer_before(up_row, "↑", down_column - up_column)
 
-        for row, navigation_key in zip(rows[:3], NAVIGATION_ROW_KEYS):
+        for row, navigation_keys in zip(rows[:3], NAVIGATION_ROW_KEYS):
             row_width = self.get_row_width(row)
             if row_width < navigation_column:
                 row.append(self.make_spacer_key(navigation_column - row_width))
-            row.append(navigation_key)
+            row.extend(navigation_keys)
         return rows
 
     @staticmethod
@@ -2629,7 +2630,18 @@ class VirtualKeyboard(Gtk.Window):
             self.update_suggestions()
             return
 
-        if key_event in {"Space", "Tab", "Enter", "Esc", "CapsLock", "←", "→", "↑", "↓"}:
+        if key_event in {
+            "Space",
+            "Tab",
+            "Enter",
+            "Esc",
+            "CapsLock",
+            "←",
+            "→",
+            "↑",
+            "↓",
+            *NAVIGATION_KEYS,
+        }:
             self.current_word = ""
             self.update_suggestions()
             return

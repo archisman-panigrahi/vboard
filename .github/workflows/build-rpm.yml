@@ -1,6 +1,9 @@
 name: Build Fedora RPM
 
 'on':
+  push:
+    branches:
+      - main
   pull_request:
   release:
     types:

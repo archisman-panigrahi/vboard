@@ -17,7 +17,16 @@ FUNCTION_KEYS = tuple(f"F{number}" for number in range(1, 13))
 
 LAYOUT_SWITCH_KEY = "Layout"
 SPACER_KEY_PREFIX = "Spacer:"
-NAVIGATION_ROW_KEYS = ("Delete", "PageUp", "PageDown")
+NAVIGATION_ROW_KEYS = (
+    ("Delete", "Insert"),
+    ("PageUp", "Home"),
+    ("PageDown", "End"),
+)
+NAVIGATION_KEYS = tuple(
+    key_event
+    for row_keys in NAVIGATION_ROW_KEYS
+    for key_event in row_keys
+)
 
 DEFAULT_KEYBOARD_LAYOUT = "en"
 

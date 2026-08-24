@@ -2,7 +2,7 @@ import unittest
 from unittest import mock
 
 from vboard import input_backends
-from vboard.constants import FUNCTION_KEYS, MODIFIER_KEYS
+from vboard.constants import FUNCTION_KEYS, MODIFIER_KEYS, NAVIGATION_KEYS
 
 
 class FakeDevice:
@@ -66,6 +66,21 @@ class UInputFunctionKeysTest(unittest.TestCase):
                 ("KEY_LEFTCTRL", 0),
             ],
         )
+
+    def test_registers_navigation_keys(self):
+        backend = input_backends.UInputBackend()
+
+        expected_events = {
+            "Delete": "KEY_DELETE",
+            "Insert": "KEY_INSERT",
+            "PageUp": "KEY_PAGEUP",
+            "PageDown": "KEY_PAGEDOWN",
+            "Home": "KEY_HOME",
+            "End": "KEY_END",
+        }
+        self.assertEqual(set(NAVIGATION_KEYS), set(expected_events))
+        for key_event, expected_event in expected_events.items():
+            self.assertEqual(backend.key_map[key_event], expected_event)
 
 
 if __name__ == "__main__":
