@@ -38,7 +38,7 @@ class VboardApplication(Gtk.Application):
             if self.window.config_pos_x > 0 and self.window.config_pos_y > 0:
                 self.window.move(self.window.config_pos_x, self.window.config_pos_y)
             self.window.show_all()
-            self.window.change_visibility()
+            self.window.set_header_controls_visible(False)
             if self.window.start_minimized and self.window.tray_icon is not None:
                 self.window.hide()
             self.window.update_tray_menu()
@@ -47,6 +47,7 @@ class VboardApplication(Gtk.Application):
     def do_activate(self):
         window = self.ensure_window()
         window.show_all()
+        window.set_header_controls_visible(False)
         window.present()
         window.request_keep_above()
         window.update_tray_menu()
