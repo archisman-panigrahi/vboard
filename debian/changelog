@@ -1,3 +1,9 @@
+vboard (2.8.0-1) unstable; urgency=medium
+
+  * Add function and navigation keys, secondary layouts, and reliable minimized startup
+
+ -- Chechulin Serhii <78239416+keefeere@users.noreply.github.com>  Mon, 24 Aug 2026 17:20:52 +0300
+
 vboard (2.7.1-1) unstable; urgency=medium
 
   * add Ukrainian layout, Plasma integration, and Fedora packaging
