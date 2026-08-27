@@ -86,15 +86,21 @@ for option in list(config.options(rule_name)):
 for legacy_key in ("title", "titlematch"):
     config.remove_option(rule_name, legacy_key)
 
+# Position is intentionally NOT managed by this rule: every numeric policy we
+# tried (Apply Now, Force) fought with the window's own hide()/present()
+# toggle instead of leaving it where the user put it. The window is never
+# destroyed between hide/show (see app.py do_activate), so KWin/GTK keep its
+# last position on their own without a rule forcing anything.
+for stale_key in ("position", "positionrule"):
+    config.remove_option(rule_name, stale_key)
+
 # KWin stores the application-identity matcher under the historical wmclass keys.
 values = {
-    "Description": "vboard always on top, no focus, remember position",
+    "Description": "vboard always on top, no focus",
     "Enabled": "true",
     "wmclass": app_id,
     "wmclassmatch": "1",
     "wmclasscomplete": "false",
-    "position": "0,0",
-    "positionrule": "4",
     "above": "true",
     "aboverule": "2",
     "acceptfocus": "false",
