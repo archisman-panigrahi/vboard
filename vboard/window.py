@@ -26,7 +26,7 @@ from .gtk import (
     GLib,
     Gtk,
 )
-from .input_backends import NullInputBackend, UInputBackend
+from .input_backends import create_input_backend
 from .layouts import get_default_layout_key, get_layout_choices, load_keyboard_layouts
 from .suggestions import HunspellSuggestionEngine
 
@@ -624,12 +624,8 @@ class VirtualKeyboard(Gtk.Window):
 
         self.create_settings()
         self.create_tray_icon()
-        try:
-            self.backend = UInputBackend()
-        except Exception as exc:
-            self.backend = NullInputBackend(
-                f"Could not initialize uinput backend ({exc}); key output is disabled"
-            )
+        # Steam Deck: prefer python-evdev UInput (see create_input_backend)
+        self.backend = create_input_backend()
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.add(content)
@@ -670,6 +666,8 @@ class VirtualKeyboard(Gtk.Window):
 
         self.keyboard_layout = self.normalize_keyboard_layout(self.keyboard_layout)
         self.refresh_layout_character_lookup()
+        # Match OS layout to Vboard layout (Cyrillic needs system "ru")
+        GLib.idle_add(lambda: self.sync_system_keyboard_layout(self.keyboard_layout) or False)
 
         for row_index, keys in enumerate(self.get_active_key_rows()):
             self.create_row(grid, row_index, keys)
@@ -994,9 +992,31 @@ class VirtualKeyboard(Gtk.Window):
         self.grid.show_all()
         self.update_suggestion_bar_scale()
 
+    def on_layout_combobox_changed(self, combobox):
+        if getattr(self, "_syncing_layout_combobox", False):
+            return
+        layout_key = combobox.get_active_id()
+        if layout_key:
+            self.set_keyboard_layout(layout_key)
+
+    def sync_layout_combobox(self):
+        if not hasattr(self, "layout_combobox") or self.layout_combobox is None:
+            return
+        self._syncing_layout_combobox = True
+        try:
+            for index, (layout_key, _label) in enumerate(self.keyboard_layout_choices):
+                if layout_key == self.keyboard_layout:
+                    self.layout_combobox.set_active(index)
+                    break
+        finally:
+            self._syncing_layout_combobox = False
+
     def set_keyboard_layout(self, layout_key):
         normalized_layout = self.normalize_keyboard_layout(layout_key)
         if normalized_layout == self.keyboard_layout:
+            self.sync_layout_combobox()
+            # Still sync the OS layout (e.g. restarted with ru already selected)
+            self.sync_system_keyboard_layout(normalized_layout)
             return
 
         self.keyboard_layout = normalized_layout
@@ -1010,8 +1030,91 @@ class VirtualKeyboard(Gtk.Window):
         self.current_word = ""
         self.update_suggestions()
         self.sync_tray_items()
+        self.sync_layout_combobox()
+        self.sync_system_keyboard_layout(normalized_layout)
 
         self.save_settings()
+
+    def sync_system_keyboard_layout(self, layout_key):
+        """
+        Vboard emits physical keycodes via uinput. The OS keyboard layout
+        decides which characters appear. On Steam Deck / Plasma Wayland we
+        switch KWin's layout so Russian Vboard labels produce Cyrillic.
+        """
+        # Map vboard layout id -> preferred system layout short name
+        wanted = {
+            "ru": "ru",
+            "en": "us",
+            "coding": "us",
+            "coding-full": "us",
+            "de": "de",
+            "fr": "fr",
+            "sv": "se",
+        }.get(layout_key)
+        if not wanted:
+            return
+
+        # Prefer qdbus6, fall back to qdbus
+        for qdbus in ("qdbus6", "qdbus"):
+            try:
+                import subprocess
+
+                # List layouts: a(sss) short, variant, display
+                list_out = subprocess.run(
+                    [
+                        qdbus,
+                        "--literal",
+                        "org.kde.keyboard",
+                        "/Layouts",
+                        "org.kde.KeyboardLayouts.getLayoutsList",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=2,
+                    check=False,
+                )
+                if list_out.returncode != 0:
+                    continue
+
+                # Parse short names in order: "us", "ru", ...
+                import re
+
+                shorts = re.findall(r'\(sss\)\s*"([^"]*)"', list_out.stdout)
+                if not shorts:
+                    # alternate parse for non-literal
+                    shorts = re.findall(r'"([a-z]{2}(?:-[a-z]+)*)"', list_out.stdout)
+
+                index = None
+                for i, name in enumerate(shorts):
+                    if name == wanted or name.startswith(wanted + "("):
+                        index = i
+                        break
+                if index is None:
+                    print(
+                        f"vboard: system layout '{wanted}' not installed "
+                        f"(have: {shorts}). Add it in System Settings → Keyboard."
+                    )
+                    return
+
+                r = subprocess.run(
+                    [
+                        qdbus,
+                        "org.kde.keyboard",
+                        "/Layouts",
+                        "org.kde.KeyboardLayouts.setLayout",
+                        str(index),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=2,
+                    check=False,
+                )
+                if r.returncode == 0:
+                    print(f"vboard: system layout → {wanted} (index {index})")
+                    return
+            except Exception as exc:
+                print(f"vboard: could not switch system layout via {qdbus}: {exc}")
+                continue
 
     def sync_gesture_controls(self):
         if (
@@ -1137,6 +1240,42 @@ class VirtualKeyboard(Gtk.Window):
         self.esc_button.connect("clicked", lambda widget: self.emit_key("Esc"))
         self.esc_button.set_name("esc-button")
         self.header.pack_start(self.esc_button)
+
+        # Layout switcher in header (Steam Deck often has no usable tray)
+        self.layout_combobox = Gtk.ComboBoxText()
+        self.layout_combobox.set_name("layout-combobox")
+        self.layout_combobox.set_tooltip_text("Keyboard layout / Раскладка")
+        self._syncing_layout_combobox = False
+        for layout_key, layout_label in self.keyboard_layout_choices:
+            self.layout_combobox.append(layout_key, layout_label)
+        # Select active layout
+        for index, (layout_key, _label) in enumerate(self.keyboard_layout_choices):
+            if layout_key == self.keyboard_layout:
+                self.layout_combobox.set_active(index)
+                break
+        self.layout_combobox.connect("changed", self.on_layout_combobox_changed)
+        self.header.pack_start(self.layout_combobox)
+
+        # One-tap language switch (system layout + Vboard labels)
+        self.ru_btn = Gtk.Button(label="RU")
+        self.ru_btn.set_tooltip_text("Русский (кириллица)")
+        self.ru_btn.set_name("lang-ru")
+        self.ru_btn.connect("clicked", lambda _w: self.set_keyboard_layout("ru"))
+        self.header.pack_start(self.ru_btn)
+
+        self.en_btn = Gtk.Button(label="EN")
+        self.en_btn.set_tooltip_text("English (US)")
+        self.en_btn.set_name("lang-en")
+        self.en_btn.connect("clicked", lambda _w: self.set_keyboard_layout("en"))
+        self.header.pack_start(self.en_btn)
+
+        self.code_btn = Gtk.Button(label="{ }")
+        self.code_btn.set_tooltip_text("Coding symbols")
+        self.code_btn.set_name("lang-code")
+        self.code_btn.connect(
+            "clicked", lambda _w: self.set_keyboard_layout("coding")
+        )
+        self.header.pack_start(self.code_btn)
 
         self.create_button("☰", self.change_visibility, callbacks=1)
         self.create_button(
@@ -1404,6 +1543,19 @@ class VirtualKeyboard(Gtk.Window):
         self._keep_above_retries = 30
         if self._keep_above_timer_id is None:
             self._keep_above_timer_id = GLib.timeout_add(500, self.keep_above_tick)
+        GLib.idle_add(self.snap_to_min_width)
+        return False
+
+    def snap_to_min_width(self):
+        child = self.get_child()
+        if child is None:
+            return False
+        min_w, _ = child.get_preferred_width()
+        if min_w <= 0:
+            return False
+        current_w, current_h = self.get_size()
+        if current_w > min_w:
+            self.resize(min_w, max(current_h, self.height, 1))
         return False
 
     def request_keep_above(self):
@@ -2273,6 +2425,18 @@ class VirtualKeyboard(Gtk.Window):
         active_modifiers = self.modifiers if modifiers is None else modifiers
         if self.gesture_controller is not None:
             self.gesture_controller.note_non_gesture_key()
+        # Re-sync OS layout occasionally so tray US does not break Cyrillic
+        if self.keyboard_layout in ("ru", "en"):
+            import time
+
+            now = time.monotonic()
+            last = getattr(self, "_last_layout_sync", 0.0)
+            if now - last > 1.5:
+                self._last_layout_sync = now
+                try:
+                    self.sync_system_keyboard_layout(self.keyboard_layout)
+                except Exception:
+                    pass
         self.track_current_word(key_event, active_modifiers)
         self.backend.emit_key(key_event, active_modifiers)
         self.reset_modifiers()
