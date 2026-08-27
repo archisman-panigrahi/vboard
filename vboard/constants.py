@@ -78,10 +78,20 @@ KEY_WIDTHS = {
     "Shift_R": 2,
     "Shift_L": 2,
     "Backspace": 5,
+    "Bksp": 5,
     "`": 1,
     "\\": 4,
     "Enter": 5,
     "<": 2,
+    # Steam Deck coding layout
+    "Esc": 2,
+    "Tab": 2,
+    "Ctrl_L": 2,
+    "Ctrl_R": 2,
+    "Alt_L": 2,
+    "Alt_R": 2,
+    "Super_L": 2,
+    "Super_R": 2,
 }
 
 SUPPORTED_WORD_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'-")
