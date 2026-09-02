@@ -1122,10 +1122,10 @@ class VirtualKeyboard(Gtk.Window):
         if sync_system and self.plasma_layout_controller is not None:
             if not self.plasma_layout_controller.set_vboard_layout(normalized_layout):
                 print(
-                    "Warning: Layout is not available in Plasma: "
+                    "Warning: Layout is not available in Plasma; "
+                    "switching Vboard without system layout synchronization: "
                     f"{normalized_layout}"
                 )
-                return
         if normalized_layout == self.keyboard_layout:
             return
 
