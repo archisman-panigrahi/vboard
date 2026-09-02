@@ -1,9 +1,129 @@
+"""Input backends for vboard.
+
+Keys are injected through Linux `uinput`, so applications see an ordinary
+physical keyboard. Two Python bindings can drive it:
+
+* ``python-uinput`` — the existing backend, unchanged and still preferred.
+* ``python-evdev`` — used only when ``python-uinput`` is unavailable.
+  ``python-uinput`` is a C extension, so it has to be compiled; on a
+  distribution that ships a read-only root without a toolchain (SteamOS is
+  the case this was written for) it cannot be installed at all, while
+  ``python-evdev`` is already present. Both open the same ``/dev/uinput``.
+
+Both bindings expose the Linux key constants under the same names, so the
+label-to-key table below is shared and each backend resolves the names
+against its own module.
+"""
+
+import time
+
 from .constants import MODIFIER_KEYS
 
 try:
     import uinput
 except ImportError:
     uinput = None
+
+try:
+    from evdev import UInput as EvdevUInput
+    from evdev import ecodes
+except ImportError:
+    EvdevUInput = None
+    ecodes = None
+
+
+# Key label -> Linux key constant name. A tuple lists alternatives, tried in
+# order; a label in OPTIONAL_KEYS may resolve to none of them and is dropped.
+KEY_NAMES = {
+    "Esc": "KEY_ESC",
+    "1": "KEY_1",
+    "2": "KEY_2",
+    "3": "KEY_3",
+    "4": "KEY_4",
+    "5": "KEY_5",
+    "6": "KEY_6",
+    "7": "KEY_7",
+    "8": "KEY_8",
+    "9": "KEY_9",
+    "0": "KEY_0",
+    "-": "KEY_MINUS",
+    "=": "KEY_EQUAL",
+    "Backspace": "KEY_BACKSPACE",
+    "Tab": "KEY_TAB",
+    "Q": "KEY_Q",
+    "W": "KEY_W",
+    "E": "KEY_E",
+    "R": "KEY_R",
+    "T": "KEY_T",
+    "Y": "KEY_Y",
+    "U": "KEY_U",
+    "I": "KEY_I",
+    "O": "KEY_O",
+    "P": "KEY_P",
+    "[": "KEY_LEFTBRACE",
+    "]": "KEY_RIGHTBRACE",
+    "Enter": "KEY_ENTER",
+    "Ctrl_L": "KEY_LEFTCTRL",
+    "Ctrl_R": "KEY_RIGHTCTRL",
+    "A": "KEY_A",
+    "S": "KEY_S",
+    "D": "KEY_D",
+    "F": "KEY_F",
+    "G": "KEY_G",
+    "H": "KEY_H",
+    "J": "KEY_J",
+    "K": "KEY_K",
+    "L": "KEY_L",
+    ";": "KEY_SEMICOLON",
+    "'": "KEY_APOSTROPHE",
+    "`": "KEY_GRAVE",
+    "Shift_L": "KEY_LEFTSHIFT",
+    "Shift_R": "KEY_RIGHTSHIFT",
+    "\\": "KEY_BACKSLASH",
+    "Z": "KEY_Z",
+    "X": "KEY_X",
+    "C": "KEY_C",
+    "V": "KEY_V",
+    "B": "KEY_B",
+    "N": "KEY_N",
+    "M": "KEY_M",
+    ",": "KEY_COMMA",
+    ".": "KEY_DOT",
+    "/": "KEY_SLASH",
+    "Alt_L": "KEY_LEFTALT",
+    "Alt_R": "KEY_RIGHTALT",
+    "Space": "KEY_SPACE",
+    "CapsLock": "KEY_CAPSLOCK",
+    "→": "KEY_RIGHT",
+    "←": "KEY_LEFT",
+    "↓": "KEY_DOWN",
+    "↑": "KEY_UP",
+    "Super_L": "KEY_LEFTMETA",
+    "Super_R": "KEY_RIGHTMETA",
+    "<": ("KEY_LESS", "KEY_102ND"),
+}
+
+OPTIONAL_KEYS = {"<"}
+
+
+def _build_key_map(module):
+    """Resolve KEY_NAMES against a binding module (uinput or evdev.ecodes)."""
+    key_map = {}
+    for label, names in KEY_NAMES.items():
+        if isinstance(names, str):
+            names = (names,)
+        for name in names:
+            value = getattr(module, name, None)
+            if value is not None:
+                key_map[label] = value
+                break
+        else:
+            if label not in OPTIONAL_KEYS:
+                raise RuntimeError(
+                    f"{module.__name__} is missing required key constant(s): "
+                    + ", ".join(names)
+                )
+    return key_map
 
 
 class InputBackend:
@@ -32,91 +152,9 @@ class UInputBackend(InputBackend):
         if uinput is None:
             raise RuntimeError("python-uinput is not installed")
 
-        less_key = self._uinput_key("KEY_LESS", "KEY_102ND", required=False)
-        self.key_map = {
-            "Esc": uinput.KEY_ESC,
-            "1": uinput.KEY_1,
-            "2": uinput.KEY_2,
-            "3": uinput.KEY_3,
-            "4": uinput.KEY_4,
-            "5": uinput.KEY_5,
-            "6": uinput.KEY_6,
-            "7": uinput.KEY_7,
-            "8": uinput.KEY_8,
-            "9": uinput.KEY_9,
-            "0": uinput.KEY_0,
-            "-": uinput.KEY_MINUS,
-            "=": uinput.KEY_EQUAL,
-            "Backspace": uinput.KEY_BACKSPACE,
-            "Tab": uinput.KEY_TAB,
-            "Q": uinput.KEY_Q,
-            "W": uinput.KEY_W,
-            "E": uinput.KEY_E,
-            "R": uinput.KEY_R,
-            "T": uinput.KEY_T,
-            "Y": uinput.KEY_Y,
-            "U": uinput.KEY_U,
-            "I": uinput.KEY_I,
-            "O": uinput.KEY_O,
-            "P": uinput.KEY_P,
-            "[": uinput.KEY_LEFTBRACE,
-            "]": uinput.KEY_RIGHTBRACE,
-            "Enter": uinput.KEY_ENTER,
-            "Ctrl_L": uinput.KEY_LEFTCTRL,
-            "Ctrl_R": uinput.KEY_RIGHTCTRL,
-            "A": uinput.KEY_A,
-            "S": uinput.KEY_S,
-            "D": uinput.KEY_D,
-            "F": uinput.KEY_F,
-            "G": uinput.KEY_G,
-            "H": uinput.KEY_H,
-            "J": uinput.KEY_J,
-            "K": uinput.KEY_K,
-            "L": uinput.KEY_L,
-            ";": uinput.KEY_SEMICOLON,
-            "'": uinput.KEY_APOSTROPHE,
-            "`": uinput.KEY_GRAVE,
-            "Shift_L": uinput.KEY_LEFTSHIFT,
-            "Shift_R": uinput.KEY_RIGHTSHIFT,
-            "\\": uinput.KEY_BACKSLASH,
-            "Z": uinput.KEY_Z,
-            "X": uinput.KEY_X,
-            "C": uinput.KEY_C,
-            "V": uinput.KEY_V,
-            "B": uinput.KEY_B,
-            "N": uinput.KEY_N,
-            "M": uinput.KEY_M,
-            ",": uinput.KEY_COMMA,
-            ".": uinput.KEY_DOT,
-            "/": uinput.KEY_SLASH,
-            "Alt_L": uinput.KEY_LEFTALT,
-            "Alt_R": uinput.KEY_RIGHTALT,
-            "Space": uinput.KEY_SPACE,
-            "CapsLock": uinput.KEY_CAPSLOCK,
-            "→": uinput.KEY_RIGHT,
-            "←": uinput.KEY_LEFT,
-            "↓": uinput.KEY_DOWN,
-            "↑": uinput.KEY_UP,
-            "Super_L": uinput.KEY_LEFTMETA,
-            "Super_R": uinput.KEY_RIGHTMETA,
-        }
-        if less_key is not None:
-            self.key_map["<"] = less_key
+        self.key_map = _build_key_map(uinput)
         self.modifier_order = list(MODIFIER_KEYS)
         self.device = uinput.Device(list(self.key_map.values()))
-
-    @staticmethod
-    def _uinput_key(*names, required=True):
-        for name in names:
-            key = getattr(uinput, name, None)
-            if key is not None:
-                return key
-        if required:
-            raise RuntimeError(
-                "python-uinput is missing required key constant(s): "
-                + ", ".join(names)
-            )
-        return None
 
     def emit_key(self, key_label, modifiers):
         key_event = self.key_map.get(key_label)
@@ -133,3 +171,82 @@ class UInputBackend(InputBackend):
         for mod_key in self.modifier_order:
             if modifiers.get(mod_key, False):
                 self.device.emit(self.key_map[mod_key], 0)
+
+
+class EvdevUInputBackend(InputBackend):
+    """Same /dev/uinput, driven by python-evdev instead of python-uinput."""
+
+    name = "evdev-uinput"
+
+    # A press that goes down and up in the same event batch was intermittently
+    # missed under KWin/Wayland — Backspace most visibly. Holding briefly makes
+    # it look like a real keystroke.
+    KEY_HOLD_SECONDS = 0.012
+
+    def __init__(self):
+        if EvdevUInput is None or ecodes is None:
+            raise RuntimeError("python-evdev is not installed")
+
+        self.key_map = _build_key_map(ecodes)
+        self.modifier_order = list(MODIFIER_KEYS)
+        self.device = EvdevUInput(
+            events={ecodes.EV_KEY: self._advertised_keys()},
+            name="vboard-keyboard",
+            bustype=ecodes.BUS_USB,
+        )
+
+    def _advertised_keys(self):
+        """Codes the virtual device claims to have.
+
+        Deliberately the whole standard AT keyboard range rather than only the
+        keys vboard maps: compositors classify an input device from the
+        capabilities it advertises, and with a narrow set KWin decided this was
+        not a keyboard and dropped Backspace and the brace keys.
+        """
+        codes = set(range(ecodes.KEY_ESC, ecodes.KEY_COMPOSE + 1))
+        codes.update(self.key_map.values())
+        return sorted(codes)
+
+    def _write(self, code, value):
+        self.device.write(ecodes.EV_KEY, code, value)
+
+    def emit_key(self, key_label, modifiers):
+        key_code = self.key_map.get(key_label)
+        if key_code is None:
+            return
+
+        for mod_key in self.modifier_order:
+            if modifiers.get(mod_key, False):
+                self._write(self.key_map[mod_key], 1)
+        self.device.syn()
+
+        self._write(key_code, 1)
+        self.device.syn()
+        time.sleep(self.KEY_HOLD_SECONDS)
+        self._write(key_code, 0)
+        self.device.syn()
+
+        for mod_key in reversed(self.modifier_order):
+            if modifiers.get(mod_key, False):
+                self._write(self.key_map[mod_key], 0)
+        self.device.syn()
+
+
+def create_input_backend():
+    """First backend that can open /dev/uinput.
+
+    python-uinput stays first, so a working installation keeps exactly the
+    behaviour it had; python-evdev is only reached where python-uinput is
+    missing or cannot be built.
+    """
+    errors = []
+    for backend in (UInputBackend, EvdevUInputBackend):
+        try:
+            return backend()
+        except Exception as exc:
+            errors.append(f"{backend.name}: {exc}")
+    return NullInputBackend(
+        "Could not initialize uinput backend ("
+        + "; ".join(errors)
+        + "); key output is disabled"
+    )

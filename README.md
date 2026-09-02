@@ -31,7 +31,8 @@ The keyboard supports customizable colors, opacity settings, and can be easily m
 - **Gesture typing**: Swipe across letter keys and vboard will decode the path into a word
 - **Compact interface**: Headerbar with minimal controls to save screen space
 - **Tray icon support**: Keeps vboard running in the background and you can quickly reopen it when needed
-- **uinput input backend**: Injects keys through Linux `uinput`
+- **uinput input backend**: Injects keys through Linux `uinput`, via
+  `python-uinput`, or via `python-evdev` where `python-uinput` cannot be installed
 
 Implementation notes for gesture typing are documented in [GESTURE_TYPING.md](./GESTURE_TYPING.md).
 
@@ -80,6 +81,11 @@ This script will handle all setup steps including dependency installation, uinpu
 For Debian/Ubuntu, Fedora, Arch, and other distributions, install the dependencies manually and then build with Meson.
 
 ### 1. Install dependencies
+
+`python-uinput` is a C extension and has to be compiled. On a distribution
+that ships a read-only root without a toolchain — SteamOS, for example — it
+cannot be installed; there, install `python-evdev` instead (`python3-evdev`,
+`python-evdev` on Arch), which vboard uses to drive the same `/dev/uinput`.
 
 **For Debian/Ubuntu-based distributions:**
 ```bash
