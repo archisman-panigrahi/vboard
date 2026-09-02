@@ -26,7 +26,7 @@ from .gtk import (
     GLib,
     Gtk,
 )
-from .input_backends import NullInputBackend, UInputBackend
+from .input_backends import create_input_backend
 from .layouts import get_default_layout_key, get_layout_choices, load_keyboard_layouts
 from .suggestions import HunspellSuggestionEngine
 
@@ -624,12 +624,7 @@ class VirtualKeyboard(Gtk.Window):
 
         self.create_settings()
         self.create_tray_icon()
-        try:
-            self.backend = UInputBackend()
-        except Exception as exc:
-            self.backend = NullInputBackend(
-                f"Could not initialize uinput backend ({exc}); key output is disabled"
-            )
+        self.backend = create_input_backend()
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.add(content)
