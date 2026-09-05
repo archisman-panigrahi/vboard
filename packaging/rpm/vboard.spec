@@ -1,5 +1,5 @@
 Name:           vboard
-Version:        2.8.0
+Version:        2.9.0
 Release:        1%{?dist}
 Summary:        Wayland virtual keyboard with modifier key support
 
@@ -18,6 +18,7 @@ BuildRequires:  python3-gobject
 
 Requires:       gobject-introspection
 Requires:       gtk3
+Requires:       gtk-layer-shell
 Requires:       python3-cairo
 Requires:       python3-gobject
 Requires:       python3-uinput
@@ -36,6 +37,7 @@ Summary:        KDE Plasma integration for Vboard
 Requires:       %{name} = %{version}-%{release}
 Requires:       plasma-workspace
 Requires:       plasma5support
+Requires:       plasma-keyboard
 Supplements:    (%{name} and plasma-workspace)
 
 %description plasma
@@ -70,6 +72,8 @@ cp -a plasmoid/package/. \
 %check
 desktop-file-validate \
     %{buildroot}%{_datadir}/applications/io.github.archisman-panigrahi.vboard.desktop
+desktop-file-validate \
+    %{buildroot}%{_datadir}/applications/io.github.archisman-panigrahi.vboard-plasma-keyboard.desktop
 python3 -m unittest discover -s tests -v
 
 
@@ -86,9 +90,14 @@ python3 -m unittest discover -s tests -v
 
 %files plasma
 %{_datadir}/plasma/plasmoids/io.github.keefeere.vboard-toggle/
+%{_datadir}/applications/io.github.archisman-panigrahi.vboard-plasma-keyboard.desktop
+%{_libexecdir}/vboard-plasma-keyboard
 
 
 %changelog
+* Sat Sep 05 2026 Chechulin Serhii <78239416+keefeere@users.noreply.github.com> - 2.9.0-1
+- Add true dock mode, KWin text-field auto-show, and secure Plasma Keyboard integration
+
 * Mon Aug 24 2026 Chechulin Serhii <78239416+keefeere@users.noreply.github.com> - 2.8.0-1
 - Add function and navigation keys, secondary layouts, and reliable minimized startup
 

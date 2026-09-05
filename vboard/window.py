@@ -21,7 +21,8 @@ from .constants import (
     SUPPORTED_WORD_CONNECTORS,
     VERSION,
 )
-from .environment import DESKTOP_ENV, is_kde_environment
+from .dock import configure_dock_window
+from .environment import DESKTOP_ENV, is_kde_environment, is_wayland_session
 from .gtk import (
     APPINDICATOR_AVAILABLE,
     APPINDICATOR_BACKEND,
@@ -32,6 +33,7 @@ from .gtk import (
     Gtk,
 )
 from .input_backends import NullInputBackend, UInputBackend
+from .kwin_autoshow import KWinTextInputMonitor
 from .layouts import (
     get_default_layout_key,
     get_layout_choices,
@@ -595,11 +597,15 @@ class VirtualKeyboard(Gtk.Window):
         self.gesture_enabled = True
         self.gesture_visual_feedback_enabled = True
         self.start_minimized = False
+        self.dock_mode = False
+        self.auto_show_on_text_fields = False
         self.keyboard_layout = self.primary_keyboard_layout
         self.plasma_layout_controller = None
         self.secondary_keyboard_layout = self.get_default_secondary_keyboard_layout()
         self.read_settings()
         self.initialize_plasma_layout_sync()
+        self.dock_active = configure_dock_window(self, self.dock_mode)
+        self.text_input_monitor = None
 
         self.modifiers = {mod_key: False for mod_key in MODIFIER_KEYS}
         self.color_map = dict(COLOR_CHOICES)
@@ -629,6 +635,8 @@ class VirtualKeyboard(Gtk.Window):
         self.tray_gesture_item = None
         self.tray_visual_feedback_item = None
         self.tray_start_minimized_item = None
+        self.tray_dock_mode_item = None
+        self.tray_auto_show_item = None
         self.tray_layout_items = {}
         self.settings_dialog = None
         self.settings_gesture_check = None
@@ -701,6 +709,8 @@ class VirtualKeyboard(Gtk.Window):
             self.enable_gesture_typing(sync_controls=False, save=False)
 
         self.sync_caps_lock_from_system(connect=True)
+        self.initialize_text_input_monitor()
+        self.connect("destroy", self.on_destroy_integrations)
 
     def get_app_icon_name(self):
         icon_theme = Gtk.IconTheme.get_default()
@@ -779,6 +789,8 @@ class VirtualKeyboard(Gtk.Window):
         self.tray_gesture_item = None
         self.tray_visual_feedback_item = None
         self.tray_start_minimized_item = None
+        self.tray_dock_mode_item = None
+        self.tray_auto_show_item = None
         self.tray_layout_items = {}
         if warning:
             print(warning)
@@ -810,6 +822,18 @@ class VirtualKeyboard(Gtk.Window):
             "toggled", self.on_tray_start_minimized_toggled
         )
         tray_menu.append(self.tray_start_minimized_item)
+
+        self.tray_dock_mode_item = Gtk.CheckMenuItem(
+            label="Dock Mode (requires app restart)"
+        )
+        self.tray_dock_mode_item.connect("toggled", self.on_tray_dock_mode_toggled)
+        tray_menu.append(self.tray_dock_mode_item)
+
+        self.tray_auto_show_item = Gtk.CheckMenuItem(
+            label="Auto-show on text fields"
+        )
+        self.tray_auto_show_item.connect("toggled", self.on_tray_auto_show_toggled)
+        tray_menu.append(self.tray_auto_show_item)
 
         tray_menu.append(Gtk.SeparatorMenuItem())
 
@@ -927,6 +951,14 @@ class VirtualKeyboard(Gtk.Window):
         if not self._syncing_tray_items:
             self.set_start_minimized(widget.get_active())
 
+    def on_tray_dock_mode_toggled(self, widget):
+        if not self._syncing_tray_items:
+            self.set_dock_mode(widget.get_active())
+
+    def on_tray_auto_show_toggled(self, widget):
+        if not self._syncing_tray_items:
+            self.set_auto_show_on_text_fields(widget.get_active())
+
     def on_tray_layout_toggled(self, widget, layout_key):
         if not self._syncing_tray_items and widget.get_active():
             self.set_keyboard_layout(layout_key)
@@ -945,6 +977,10 @@ class VirtualKeyboard(Gtk.Window):
                 self.tray_visual_feedback_item.set_sensitive(self.gesture_enabled)
             if self.tray_start_minimized_item is not None:
                 self.tray_start_minimized_item.set_active(self.start_minimized)
+            if self.tray_dock_mode_item is not None:
+                self.tray_dock_mode_item.set_active(self.dock_mode)
+            if self.tray_auto_show_item is not None:
+                self.tray_auto_show_item.set_active(self.auto_show_on_text_fields)
             for layout_key, item in self.tray_layout_items.items():
                 item.set_active(layout_key == self.keyboard_layout)
         finally:
@@ -1464,14 +1500,27 @@ class VirtualKeyboard(Gtk.Window):
         )
         grid.attach(start_minimized_check, 0, 3, 2, 1)
 
+        dock_mode_check = Gtk.CheckButton(
+            label="Dock Mode (reserves screen space; requires app restart)"
+        )
+        dock_mode_check.set_active(self.dock_mode)
+        dock_mode_check.connect("toggled", self.on_settings_dock_mode_toggled)
+        grid.attach(dock_mode_check, 0, 4, 3, 1)
+
+        auto_show_check = Gtk.CheckButton(label="Auto-show on text fields (Plasma Wayland)")
+        auto_show_check.set_active(self.auto_show_on_text_fields)
+        auto_show_check.set_sensitive(is_kde_environment() and is_wayland_session())
+        auto_show_check.connect("toggled", self.on_settings_auto_show_toggled)
+        grid.attach(auto_show_check, 0, 5, 3, 1)
+
         layout_label = Gtk.Label(label="Secondary Layout", xalign=0)
         layout_combo = Gtk.ComboBoxText()
         for layout_key, layout_name in self.get_secondary_keyboard_layout_choices():
             layout_combo.append(layout_key, layout_name)
         layout_combo.set_active_id(self.secondary_keyboard_layout)
         layout_combo.connect("changed", self.on_settings_secondary_layout_changed)
-        grid.attach(layout_label, 0, 4, 1, 1)
-        grid.attach(layout_combo, 1, 4, 1, 1)
+        grid.attach(layout_label, 0, 6, 1, 1)
+        grid.attach(layout_combo, 1, 6, 1, 1)
 
         about_button = Gtk.Button(label="About")
         about_button.connect("clicked", self.on_settings_about_clicked)
@@ -1479,9 +1528,9 @@ class VirtualKeyboard(Gtk.Window):
         report_bugs_button.connect("clicked", self.on_settings_report_bugs_clicked)
         quit_button = Gtk.Button(label="Quit")
         quit_button.connect("clicked", self.on_settings_quit_clicked)
-        grid.attach(about_button, 0, 5, 1, 1)
-        grid.attach(report_bugs_button, 1, 5, 1, 1)
-        grid.attach(quit_button, 2, 5, 1, 1)
+        grid.attach(about_button, 0, 7, 1, 1)
+        grid.attach(report_bugs_button, 1, 7, 1, 1)
+        grid.attach(quit_button, 2, 7, 1, 1)
 
         self.settings_dialog = dialog
         dialog.show_all()
@@ -1510,6 +1559,12 @@ class VirtualKeyboard(Gtk.Window):
 
     def on_settings_start_minimized_toggled(self, widget):
         self.set_start_minimized(widget.get_active())
+
+    def on_settings_dock_mode_toggled(self, widget):
+        self.set_dock_mode(widget.get_active())
+
+    def on_settings_auto_show_toggled(self, widget):
+        self.set_auto_show_on_text_fields(widget.get_active())
 
     def on_settings_secondary_layout_changed(self, widget):
         layout_key = widget.get_active_id()
@@ -1570,15 +1625,65 @@ class VirtualKeyboard(Gtk.Window):
         self.sync_tray_items()
         self.save_settings()
 
+    def set_dock_mode(self, enabled):
+        enabled = bool(enabled)
+        if enabled == self.dock_mode:
+            return
+        self.dock_mode = enabled
+        self.sync_tray_items()
+        self.save_settings()
+
+    def set_auto_show_on_text_fields(self, enabled):
+        enabled = bool(enabled)
+        if enabled == self.auto_show_on_text_fields:
+            return
+        self.auto_show_on_text_fields = enabled
+        if enabled:
+            self.initialize_text_input_monitor()
+        elif self.text_input_monitor is not None:
+            self.text_input_monitor.stop()
+            self.text_input_monitor = None
+        self.sync_tray_items()
+        self.save_settings()
+
+    def initialize_text_input_monitor(self):
+        if not self.auto_show_on_text_fields or self.text_input_monitor is not None:
+            return
+        if not (is_kde_environment() and is_wayland_session()):
+            print("Warning: Text-field auto-show requires a Plasma Wayland session.")
+            return
+        monitor = KWinTextInputMonitor(Gio, GLib, self.on_text_input_visibility_changed)
+        if monitor.start():
+            self.text_input_monitor = monitor
+
+    def on_text_input_visibility_changed(self, should_show):
+        if not self.auto_show_on_text_fields:
+            return
+        if should_show:
+            self.show_all()
+            self.set_header_controls_visible(False)
+            self.request_keep_above()
+        else:
+            self.set_header_controls_visible(False)
+            self.hide()
+        self.update_tray_menu()
+
+    def on_destroy_integrations(self, widget):
+        if self.text_input_monitor is not None:
+            self.text_input_monitor.stop()
+            self.text_input_monitor = None
+
     def preload_suggestions(self):
         self.suggestion_engine.ensure_loaded()
         return False
 
     def on_resize(self, widget, event):
-        self.width, self.height = self.get_size()
-        x, y = self.get_position()
-        if x > 0 and y > 0:
-            self.pos_x, self.pos_y = x, y
+        allocated_width, self.height = self.get_size()
+        if not self.dock_active:
+            self.width = allocated_width
+            x, y = self.get_position()
+            if x > 0 and y > 0:
+                self.pos_x, self.pos_y = x, y
         if self.gesture_controller is not None:
             self.gesture_controller.refresh_layout_cache()
         self.update_suggestion_bar_scale()
@@ -2870,6 +2975,12 @@ class VirtualKeyboard(Gtk.Window):
                     "start_minimized",
                     fallback=False,
                 )
+                self.dock_mode = self.config.getboolean(
+                    "DEFAULT", "dock_mode", fallback=False
+                )
+                self.auto_show_on_text_fields = self.config.getboolean(
+                    "DEFAULT", "auto_show_on_text_fields", fallback=False
+                )
                 saved_keyboard_layout = self.normalize_keyboard_layout(
                     self.config.get(
                         "DEFAULT",
@@ -2916,6 +3027,8 @@ class VirtualKeyboard(Gtk.Window):
             "style_variant": self.style_variant,
             "text_prediction_enabled": str(self.text_prediction_enabled),
             "start_minimized": str(self.start_minimized),
+            "dock_mode": str(self.dock_mode),
+            "auto_show_on_text_fields": str(self.auto_show_on_text_fields),
             "gesture_enabled": str(self.gesture_enabled),
             "gesture_visual_feedback_enabled": str(
                 self.gesture_visual_feedback_enabled

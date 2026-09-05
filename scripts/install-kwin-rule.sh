@@ -22,7 +22,10 @@ for arg in "$@"; do
 done
 
 if [[ "$SCOPE" == "auto" ]]; then
-    if [[ "$SYSTEM_PREFIX" == "$HOME"* ]]; then
+    canonical_home="$(realpath -m "$HOME")"
+    canonical_prefix="$(realpath -m "$SYSTEM_PREFIX")"
+    if [[ "$canonical_prefix" == "$canonical_home" \
+        || "$canonical_prefix" == "$canonical_home/"* ]]; then
         SCOPE="user"
     elif [[ "$EUID" -eq 0 ]]; then
         SCOPE="system"

@@ -4,3 +4,5 @@ AUR/pkg/
 AUR/src/
 AUR/vboard/
 AUR/*.tar.zst
+.test-cache/
+.test-dest*/

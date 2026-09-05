@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Keep using KDE's own Plasma Keyboard (including on the lock screen and SDDM),
+# but derive a tiny update-safe style variant in the caller's cache. The only
+# behavioral change is that the language key cycles directly instead of opening
+# the language popup.
+
+find_breeze_style() {
+  local qml_root=""
+  if command -v qtpaths6 >/dev/null 2>&1; then
+    qml_root="$(qtpaths6 --query QT_INSTALL_QML 2>/dev/null || true)"
+    if [[ -f "$qml_root/QtQuick/VirtualKeyboard/Styles/Breeze/style.qml" ]]; then
+      printf '%s\n' "$qml_root/QtQuick/VirtualKeyboard/Styles/Breeze/style.qml"
+      return 0
+    fi
+  fi
+
+  local candidate
+  for candidate in \
+    /usr/lib64/qt6/qml/QtQuick/VirtualKeyboard/Styles/Breeze/style.qml \
+    /usr/lib/qt6/qml/QtQuick/VirtualKeyboard/Styles/Breeze/style.qml \
+    /usr/lib/*/qt6/qml/QtQuick/VirtualKeyboard/Styles/Breeze/style.qml; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+SOURCE_STYLE="$(find_breeze_style || true)"
+if [[ -z "$SOURCE_STYLE" ]]; then
+  echo "vboard: Plasma Keyboard Breeze style was not found; using the system default" >&2
+  exec /usr/bin/plasma-keyboard "$@"
+fi
+
+CACHE_BASE="${XDG_CACHE_HOME:-${HOME}/.cache}"
+QML_ROOT="$CACHE_BASE/vboard/plasma-keyboard/qml"
+STYLE_DIR="$QML_ROOT/QtQuick/VirtualKeyboard/Styles/VboardBreeze"
+TARGET_STYLE="$STYLE_DIR/style.qml"
+SOURCE_STAMP="$STYLE_DIR/source-path"
+
+mkdir -p "$STYLE_DIR"
+if [[ ! -f "$TARGET_STYLE" || "$SOURCE_STYLE" -nt "$TARGET_STYLE" \
+      || ! -f "$SOURCE_STAMP" || "$(<"$SOURCE_STAMP")" != "$SOURCE_STYLE" ]]; then
+  TEMP_STYLE="$STYLE_DIR/.style.qml.$$"
+  sed -E \
+    's/languagePopupListEnabled:[[:space:]]*true/languagePopupListEnabled: false/' \
+    "$SOURCE_STYLE" >"$TEMP_STYLE"
+  if ! grep -q 'languagePopupListEnabled: false' "$TEMP_STYLE"; then
+    rm -f "$TEMP_STYLE"
+    echo "vboard: installed Breeze style has no known language popup setting" >&2
+    exec /usr/bin/plasma-keyboard "$@"
+  fi
+  mv -f "$TEMP_STYLE" "$TARGET_STYLE"
+  printf '%s\n' "$SOURCE_STYLE" >"$SOURCE_STAMP"
+fi
+
+if [[ "${1:-}" == "--prepare-style" ]]; then
+  printf '%s\n' "$TARGET_STYLE"
+  exit 0
+fi
+
+export QT_QPA_PLATFORMTHEME="${QT_QPA_PLATFORMTHEME:-kde}"
+export QT_VIRTUALKEYBOARD_STYLE=VboardBreeze
+export QML_IMPORT_PATH="$QML_ROOT${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
+export QML2_IMPORT_PATH="$QML_ROOT${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}"
+
+exec /usr/bin/plasma-keyboard "$@"

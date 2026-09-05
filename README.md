@@ -36,6 +36,9 @@ and user-defined JSON layouts.
 - **Plasma widget**: Includes an optional one-click panel/desktop widget for showing or hiding vboard
 - **Compact interface**: Headerbar with minimal controls to save screen space
 - **Tray icon support**: Keeps vboard running in the background and you can quickly reopen it when needed
+- **True dock mode**: Uses Wayland layer shell to reserve space at the bottom so normal windows do not sit underneath the keyboard
+- **Text-field auto-show on Plasma Wayland**: Follows KWin's text-input state while yielding to Plasma Keyboard whenever its secure panel is visible
+- **Secure Plasma integration**: An optional wrapper keeps KDE's native keyboard for lock screen and SDDM while making the language key switch directly without a popup
 - **uinput input backend**: Injects keys through Linux `uinput`
 
 Implementation notes for gesture typing are documented in [GESTURE_TYPING.md](./GESTURE_TYPING.md).
@@ -88,7 +91,7 @@ For Debian/Ubuntu, Fedora, Arch, and other distributions, install the dependenci
 
 **For Debian/Ubuntu-based distributions:**
 ```bash
-sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build --no-install-recommends
+sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build --no-install-recommends
 ```
 Optional for word suggestions:
 ```bash
@@ -97,7 +100,7 @@ sudo apt install hunspell-en-us
 
 **For Fedora-based distributions:**
 ```bash
-sudo dnf install python3-gobject python3-cairo gtk3 python3-uinput python3-setuptools libappindicator-gtk3 meson ninja-build
+sudo dnf install python3-gobject python3-cairo gtk3 gtk-layer-shell python3-uinput python3-setuptools libappindicator-gtk3 meson ninja-build
 ```
 Optional for word suggestions:
 ```bash
@@ -109,6 +112,16 @@ Install both packages for the keyboard and its optional Plasma widget. On an
 immutable Bazzite system, local RPMs must be layered with `rpm-ostree` and take
 effect after a reboot; use the user-only source installation below if you want
 to avoid package layering.
+
+For only the dock-mode dependency on Bazzite/Fedora Atomic, use the additive
+live-apply form when no conflicting deployment is pending:
+
+```bash
+rpm-ostree install -yA gtk-layer-shell
+```
+
+If rpm-ostree cannot live-apply it, the package becomes active after reboot.
+Do not use `apply-live --allow-replacement` for this dependency.
 
 In Fedora KDE, you will also have to create a symlink for qdbus
 ```
@@ -173,9 +186,41 @@ For system installs:
 sudo meson compile -C builddir uninstall-local
 ```
 
-### KDE Plasma: enable vboard as the default on-screen keyboard
+### KDE Plasma: text fields, direct language switch, lock screen, and SDDM
 
-After installation, open **System Settings**, search for **Virtual Keyboard**, and select **Vboard**.
+Vboard's main window injects desktop keys through `uinput`; it is deliberately
+not run inside the lock screen or login greeter. The install also provides
+**Vboard Plasma Keyboard**, a wrapper around KDE's native secure keyboard (in
+the `vboard-plasma` subpackage on Fedora). It retains Plasma's input-method
+protocol and changes the language button from a popup into direct layout
+cycling.
+
+Select it for the current Plasma session with:
+
+```bash
+~/.local/share/vboard/scripts/configure-plasma-keyboard.sh --session
+```
+
+For a system package installation, use
+`/usr/share/vboard/scripts/configure-plasma-keyboard.sh` instead. You can also
+select **Vboard Plasma Keyboard** in **System Settings → Virtual Keyboard**.
+The same KWin input method is then available on Plasma's lock screen.
+
+To apply the wrapper to a Wayland SDDM greeter after a system-wide install:
+
+```bash
+sudo /usr/share/vboard/scripts/configure-plasma-keyboard.sh --sddm
+```
+
+This writes a separate SDDM drop-in and does not restart the display manager;
+it takes effect on the next SDDM start. The generated keyboard style lives in
+each account's cache and is refreshed automatically from the installed Breeze
+style, so Plasma upgrades do not overwrite it.
+
+Enable **Dock Mode** in Vboard Options and restart Vboard to reserve the bottom
+work area. Enable **Auto-show on text fields** to follow KWin's Wayland
+text-input state. When native Plasma Keyboard is visible (including secure
+screens), Vboard hides and lets it take precedence.
 
 ### KDE Plasma: install the toggle widget
 
@@ -228,6 +273,8 @@ vboard saves its settings to `~/.config/vboard/settings.conf`. This configuratio
 - Gesture typing enabled/disabled state
 - Gesture visual feedback enabled/disabled state
 - Start minimized enabled/disabled state
+- Dock mode enabled/disabled state
+- Text-field auto-show enabled/disabled state
 - Keyboard layout
 - Secondary keyboard layout used by the quick-switch key
 - Opacity level

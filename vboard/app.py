@@ -35,7 +35,11 @@ class VboardApplication(Gtk.Application):
             self.window.connect("destroy", lambda w: w.save_settings())
             self.window.connect("destroy", self.on_window_destroy)
             self.window.connect("configure-event", self.window.on_resize)
-            if self.window.config_pos_x > 0 and self.window.config_pos_y > 0:
+            if (
+                not self.window.dock_active
+                and self.window.config_pos_x > 0
+                and self.window.config_pos_y > 0
+            ):
                 self.window.move(self.window.config_pos_x, self.window.config_pos_y)
             self.window.set_header_controls_visible(False)
             self.window.update_tray_menu()

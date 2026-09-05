@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 3 ]]; then
-  echo "Usage: $0 <prefix> <bindir> <datadir>" >&2
+if [[ $# -lt 3 || $# -gt 4 ]]; then
+  echo "Usage: $0 <prefix> <bindir> <datadir> [libexecdir]" >&2
   exit 2
 fi
 
 PREFIX="$1"
 BINDIR_OPT="$2"
 DATADIR_OPT="$3"
+LIBEXECDIR_OPT="${4:-libexec}"
 
 resolve_dir() {
   local prefix="$1"
@@ -36,6 +37,7 @@ run_script() {
 
 BINDIR="$(resolve_dir "$PREFIX" "$BINDIR_OPT")"
 DATADIR="$(resolve_dir "$PREFIX" "$DATADIR_OPT")"
+LIBEXECDIR="$(resolve_dir "$PREFIX" "$LIBEXECDIR_OPT")"
 VBOARD_DATA_DIR="$DATADIR/vboard"
 VBOARD_PYTHON_DIR="$VBOARD_DATA_DIR/vboard"
 SCRIPTS_DIR="$VBOARD_DATA_DIR/scripts"
@@ -77,6 +79,8 @@ remove_file() {
 
 remove_file "$BINDIR/vboard"
 remove_file "$DATADIR/applications/io.github.archisman-panigrahi.vboard.desktop"
+remove_file "$DATADIR/applications/io.github.archisman-panigrahi.vboard-plasma-keyboard.desktop"
+remove_file "$LIBEXECDIR/vboard-plasma-keyboard"
 remove_file "$DATADIR/icons/hicolor/scalable/apps/io.github.archisman-panigrahi.vboard.svg"
 remove_file "$VBOARD_DATA_DIR/uinput.md"
 remove_file "$VBOARD_DATA_DIR/LICENSE"
@@ -86,9 +90,11 @@ remove_file "$VBOARD_PYTHON_DIR/__main__.py"
 remove_file "$VBOARD_PYTHON_DIR/app.py"
 remove_file "$VBOARD_PYTHON_DIR/constants.py"
 remove_file "$VBOARD_PYTHON_DIR/environment.py"
+remove_file "$VBOARD_PYTHON_DIR/dock.py"
 remove_file "$VBOARD_PYTHON_DIR/gtk.py"
 remove_file "$VBOARD_PYTHON_DIR/input_backends.py"
 remove_file "$VBOARD_PYTHON_DIR/layouts.py"
+remove_file "$VBOARD_PYTHON_DIR/kwin_autoshow.py"
 remove_file "$VBOARD_PYTHON_DIR/layouts/en.json"
 remove_file "$VBOARD_PYTHON_DIR/layouts/de.json"
 remove_file "$VBOARD_PYTHON_DIR/layouts/fr.json"
@@ -97,9 +103,11 @@ remove_file "$VBOARD_PYTHON_DIR/layouts/sv.json"
 remove_file "$VBOARD_PYTHON_DIR/suggestions.py"
 remove_file "$VBOARD_PYTHON_DIR/window.py"
 remove_file "$SCRIPTS_DIR/install-kwin-rule.sh"
+remove_file "$SCRIPTS_DIR/configure-plasma-keyboard.sh"
 remove_file "$SCRIPTS_DIR/uninstall-kwin-rule.sh"
 remove_file "$SCRIPTS_DIR/meson-post-install.sh"
 remove_file "$SCRIPTS_DIR/setup-uinput.sh"
+remove_file "$SCRIPTS_DIR/vboard-plasma-keyboard"
 
 # Legacy cleanup for installs that duplicated the desktop file into share/vboard
 # and shipped dedicated Plasma desktop-entry helper scripts.
