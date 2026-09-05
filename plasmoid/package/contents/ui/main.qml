@@ -15,7 +15,7 @@ PlasmoidItem {
     id: root
 
     readonly property string iconName: "input-keyboard"
-    readonly property string toggleCommand: "/usr/bin/env vboard --toggle"
+    readonly property string toggleCommand: "/bin/sh -c '/usr/bin/nohup /usr/bin/env vboard --toggle </dev/null >/dev/null 2>&1 &'"
     property bool busy: false
 
     Plasmoid.icon: iconName

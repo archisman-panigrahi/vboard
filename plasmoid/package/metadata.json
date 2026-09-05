@@ -14,7 +14,7 @@
         "License": "GPL-3.0-or-later",
         "Name": "Vboard Keyboard",
         "Name[uk]": "Екранна клавіатура Vboard",
-        "Version": "1.0.0",
+        "Version": "1.0.1",
         "Website": "https://github.com/archisman-panigrahi/vboard"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
