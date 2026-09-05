@@ -1,3 +1,9 @@
+vboard (2.9.0-1) unstable; urgency=medium
+
+  * Add true dock mode, KWin text-field auto-show, and secure Plasma Keyboard integration
+
+ -- Chechulin Serhii <78239416+keefeere@users.noreply.github.com>  Sat, 05 Sep 2026 20:08:30 +0300
+
 vboard (2.8.0-1) unstable; urgency=medium
 
   * Add function and navigation keys, secondary layouts, and reliable minimized startup

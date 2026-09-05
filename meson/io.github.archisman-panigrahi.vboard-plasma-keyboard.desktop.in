@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Vboard Plasma Keyboard
+Comment=Secure Plasma Keyboard with direct language switching
+Exec=@VBOARD_PLASMA_KEYBOARD_EXEC@
+Icon=io.github.archisman-panigrahi.vboard
+Type=Application
+NoDisplay=true
+X-KDE-Wayland-VirtualKeyboard=true

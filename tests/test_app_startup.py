@@ -7,6 +7,7 @@ from vboard.app import VboardApplication
 class FakeWindow:
     def __init__(self, start_minimized=False, has_tray=True):
         self.start_minimized = start_minimized
+        self.dock_active = False
         self.tray_icon = object() if has_tray else None
         self.calls = []
 

@@ -8,6 +8,18 @@ from gi.repository import Gio
 from gi.repository import GLib
 from gi.repository import Gtk
 
+GTK_LAYER_SHELL_AVAILABLE = False
+GtkLayerShell = None
+
+try:
+    gi.require_version("GtkLayerShell", "0.1")
+    from gi.repository import GtkLayerShell
+
+    GTK_LAYER_SHELL_AVAILABLE = True
+except (ImportError, ValueError):
+    GTK_LAYER_SHELL_AVAILABLE = False
+    GtkLayerShell = None
+
 APPINDICATOR_AVAILABLE = False
 AppIndicator3 = None
 APPINDICATOR_BACKEND = None

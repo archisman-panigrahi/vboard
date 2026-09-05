@@ -65,7 +65,10 @@ refresh_plasma_cache() {
 }
 
 scope="system"
-if [[ "$INSTALL_PREFIX" == "$HOME"* ]]; then
+canonical_home="$(realpath -m "$HOME")"
+canonical_prefix="$(realpath -m "$INSTALL_PREFIX")"
+if [[ "$canonical_prefix" == "$canonical_home" \
+      || "$canonical_prefix" == "$canonical_home/"* ]]; then
   scope="user"
 fi
 
@@ -96,4 +99,5 @@ if [[ "$session_lc" != *kde* && "$session_lc" != *plasma* ]]; then
 fi
 
 refresh_plasma_cache
-echo "Open System Settings, search for Virtual Keyboard, and select Vboard."
+echo "For Plasma text-field, lock-screen, and SDDM integration, see:"
+echo "  $SCRIPTS_DIR/configure-plasma-keyboard.sh --help"

@@ -3,11 +3,11 @@
 
 _pkgname=vboard
 pkgname="${_pkgname}-git"
-pkgver=2.8.0
+pkgver=2.9.0
 pkgrel=1
 pkgdesc='Wayland virtual keyboard for GNU/Linux with modifier key support'
 arch=('any')
-url='https://github.com/archisman-panigrahi/vboard'
+url='https://github.com/keefeere/vboard'
 license=('GPL3')
 install="${pkgname}.install"
 depends=(
@@ -15,6 +15,7 @@ depends=(
   'python-cairo'
   'python-gobject'
   'gtk3'
+  'gtk-layer-shell'
   'python-uinput'
   'libayatana-appindicator'
 )
@@ -26,10 +27,11 @@ makedepends=(
 optdepends=(
   'desktop-file-utils: provides update-desktop-database for helper scripts'
   'hunspell-en_us: enables word suggestions'
+  'plasma-keyboard: enables secure Plasma text-field, lock-screen, and SDDM integration'
 )
 provides=("${_pkgname}")
 conflicts=("${_pkgname}")
-source=("${_pkgname}::git+https://github.com/archisman-panigrahi/vboard.git#branch=kde-fix")
+source=("${_pkgname}::git+https://github.com/keefeere/vboard.git#branch=main")
 sha256sums=('SKIP')
 
 pkgver() {
