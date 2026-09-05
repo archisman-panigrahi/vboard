@@ -4,8 +4,10 @@ set -euo pipefail
 # Keep KDE's native secure Plasma Keyboard for the desktop, lock screen, and
 # SDDM. Plasma handles the language key through its own external popup, so a
 # style override alone cannot reliably change the behavior. Instead, derive an
-# update-safe copy of Plasma's layouts and make each ChangeLanguageKey cycle
-# directly through the enabled locales.
+# update-safe copy of Plasma's layouts and replace each ChangeLanguageKey with
+# an equivalent plain Key that has one click handler: cycle directly through
+# the enabled locales. A handler added to ChangeLanguageKey itself would run in
+# addition to its inherited popup handler, causing both actions.
 
 PLASMA_KEYBOARD_EXECUTABLE="${VBOARD_PLASMA_KEYBOARD_EXECUTABLE:-/usr/bin/plasma-keyboard}"
 
@@ -43,13 +45,15 @@ TARGET_LAYOUTS="$LAYOUT_PARENT/layouts"
 SOURCE_STAMP="$LAYOUT_PARENT/source-path"
 SIGNATURE_STAMP="$LAYOUT_PARENT/source-signature"
 
-SOURCE_SIGNATURE="$(
+PATCH_VERSION=2
+SOURCE_HASH="$(
   find "$SOURCE_LAYOUTS" -type f -print0 \
     | sort -z \
     | xargs -0 sha256sum \
     | sha256sum \
     | cut -d' ' -f1
 )"
+SOURCE_SIGNATURE="$PATCH_VERSION:$SOURCE_HASH"
 
 REFRESH_LAYOUTS=0
 if [[ ! -d "$TARGET_LAYOUTS" || ! -f "$SOURCE_STAMP" \
@@ -70,7 +74,17 @@ if [[ "$REFRESH_LAYOUTS" -eq 1 ]]; then
   while IFS= read -r -d '' layout_file; do
     if grep -Eq '^[[:space:]]*ChangeLanguageKey[[:space:]]*\{' "$layout_file"; then
       sed -i -E \
-        '/^[[:space:]]*ChangeLanguageKey[[:space:]]*\{/a\            onClicked: keyboard.changeInputLanguage(customLayoutsOnly)' \
+        '/^[[:space:]]*ChangeLanguageKey[[:space:]]*\{/ {
+          s/ChangeLanguageKey/Key/
+          a\            property bool customLayoutsOnly: false
+          a\            keyType: QtVirtualKeyboard.KeyType.ChangeLanguageKey
+          a\            functionKey: true
+          a\            highlighted: true
+          a\            displayText: keyboard.locale.split("_")[0]
+          a\            keyPanelDelegate: keyboard.style ? keyboard.style.languageKeyPanel : undefined
+          a\            enabled: keyboard.canChangeInputLanguage(customLayoutsOnly)
+          a\            onClicked: keyboard.changeInputLanguage(customLayoutsOnly)
+        }' \
         "$layout_file"
       PATCH_COUNT=$((PATCH_COUNT + 1))
     fi

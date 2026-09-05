@@ -40,11 +40,19 @@ class PlasmaKeyboardWrapperTest(unittest.TestCase):
             generated_layout = generated_layouts / "uk_UA" / "main.qml"
             self.assertTrue(generated_layout.is_file())
             layout_text = generated_layout.read_text(encoding="utf-8")
+            self.assertNotIn("ChangeLanguageKey {", layout_text)
+            self.assertIn("Key {", layout_text)
+            self.assertIn(
+                "keyType: QtVirtualKeyboard.KeyType.ChangeLanguageKey",
+                layout_text,
+            )
             self.assertIn(
                 "onClicked: keyboard.changeInputLanguage(customLayoutsOnly)",
                 layout_text,
             )
-            self.assertNotIn("onClicked:", source_layout.read_text(encoding="utf-8"))
+            source_text = source_layout.read_text(encoding="utf-8")
+            self.assertIn("ChangeLanguageKey {", source_text)
+            self.assertNotIn("onClicked:", source_text)
 
     def test_wrapper_exposes_derived_layouts_as_xdg_data_home(self):
         repository = pathlib.Path(__file__).resolve().parents[1]
