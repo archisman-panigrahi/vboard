@@ -23,6 +23,7 @@ class VboardApplication(Gtk.Application):
             flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE,
         )
         self.window = None
+        self._recreating_window = False
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
@@ -89,7 +90,29 @@ class VboardApplication(Gtk.Application):
 
     def on_window_destroy(self, window):
         self.window = None
+        if self._recreating_window:
+            GLib.idle_add(self.finish_window_recreation)
+            return
         self.quit()
+
+    def recreate_window(self):
+        """Recreate the window so pre-map layer-shell options can change."""
+
+        if self.window is None or self._recreating_window:
+            return False
+        self._recreating_window = True
+        self.hold()
+        self.window.destroy()
+        return False
+
+    def finish_window_recreation(self):
+        try:
+            window = self.ensure_window()
+            self.show_window(window)
+        finally:
+            self._recreating_window = False
+            self.release()
+        return False
 
 
 def main(argv=None):

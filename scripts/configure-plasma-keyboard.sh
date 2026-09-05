@@ -3,12 +3,15 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: configure-plasma-keyboard.sh [--session] [--sddm]
+Usage: configure-plasma-keyboard.sh [--desktop-and-lock-screen] [--sddm]
 
-  --session  Select the Vboard-wrapped Plasma Keyboard for the current user.
-  --sddm     Configure the SDDM Wayland greeter (must run as root).
+  --desktop-and-lock-screen
+             Select the wrapped Plasma Keyboard as KWin's input method. Plasma
+             uses this one provider for both the unlocked desktop and lock screen.
+  --session  Backward-compatible alias for --desktop-and-lock-screen.
+  --sddm     Configure SDDM's separate Wayland compositor (must run as root).
 
-With no option, --session is used.
+With no option, --desktop-and-lock-screen is used.
 EOF
 }
 
@@ -19,7 +22,7 @@ if [[ $# -eq 0 ]]; then
 fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --session) ENABLE_SESSION=1 ;;
+    --session|--desktop-and-lock-screen) ENABLE_SESSION=1 ;;
     --sddm) ENABLE_SDDM=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -65,12 +68,12 @@ if [[ "$ENABLE_SESSION" -eq 1 ]]; then
     echo "kwriteconfig was not found; cannot configure the Plasma session." >&2
     exit 1
   fi
-  "$KWRITECONFIG" --file kwinrc --group Wayland --key InputMethod "$DESKTOP_ENTRY"
-  "$KWRITECONFIG" --file kwinrc --group Wayland --key VirtualKeyboardEnabled true
-  if command -v qdbus6 >/dev/null 2>&1; then
-    qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
-  fi
-  echo "Selected Vboard Plasma Keyboard for the current Plasma session."
+  # KWin watches notified config changes. Clearing the command first forces it
+  # to restart an already-running input method with the new wrapper immediately.
+  "$KWRITECONFIG" --notify --file kwinrc --group Wayland --key InputMethod ""
+  "$KWRITECONFIG" --notify --file kwinrc --group Wayland --key InputMethod "$DESKTOP_ENTRY"
+  "$KWRITECONFIG" --notify --file kwinrc --group Wayland --key VirtualKeyboardEnabled true
+  echo "Selected Vboard Plasma Keyboard for desktop and lock screen."
 fi
 
 if [[ "$ENABLE_SDDM" -eq 1 ]]; then

@@ -1,3 +1,9 @@
+vboard (2.9.1-1) unstable; urgency=medium
+
+  * Fix Plasma keyboard selection and add instant opaque dock switching
+
+ -- Chechulin Serhii <78239416+keefeere@users.noreply.github.com>  Sat, 05 Sep 2026 21:12:18 +0300
+
 vboard (2.9.0-1) unstable; urgency=medium
 
   * Add true dock mode, KWin text-field auto-show, and secure Plasma Keyboard integration
