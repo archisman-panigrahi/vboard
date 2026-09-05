@@ -1,3 +1,9 @@
+vboard (2.9.2-1) unstable; urgency=medium
+
+  * Fix dock-mode visibility and make Plasma language keys cycle directly
+
+ -- Chechulin Serhii <78239416+keefeere@users.noreply.github.com>  Sat, 05 Sep 2026 23:54:02 +0300
+
 vboard (2.9.1-1) unstable; urgency=medium
 
   * Fix Plasma keyboard selection and add instant opaque dock switching

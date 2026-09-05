@@ -193,7 +193,9 @@ not run inside the lock screen or login greeter. The install also provides
 **Vboard Plasma Keyboard**, a wrapper around KDE's native secure keyboard (in
 the `vboard-plasma` subpackage on Fedora). It retains Plasma's input-method
 protocol and changes the language button from a popup into direct layout
-cycling.
+cycling. It does this with a process-local, update-safe copy of Plasma's own
+layouts: each `ChangeLanguageKey` directly selects the next enabled locale,
+while the system layouts remain untouched.
 
 Select it for the current Plasma session with:
 
@@ -220,12 +222,11 @@ sudo /usr/share/vboard/scripts/configure-plasma-keyboard.sh --sddm
 ```
 
 This writes a separate SDDM drop-in and does not restart the display manager;
-it takes effect on the next SDDM start. The generated keyboard style lives in
-each account's cache and is refreshed automatically from the installed Breeze
-style, so Plasma upgrades do not overwrite it. Plasma Keyboard 6.7 explicitly
-selects the style named `Breeze`; the wrapper therefore places its derived
-`Breeze` override first in the process-local QML import path instead of editing
-the system copy.
+it takes effect on the next SDDM start. The generated layout tree lives in each
+account's cache and is refreshed automatically whenever Plasma's installed
+layouts change, so Plasma upgrades do not overwrite it. Plasma Keyboard 6.7
+uses its own external language popup, which is why changing only Qt's Breeze
+style is insufficient.
 
 Enable **Dock Mode** in Vboard Options and restart Vboard to reserve the bottom
 work area, or use the `⌄` header button to switch immediately. Dock mode forces

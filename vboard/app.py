@@ -108,6 +108,7 @@ class VboardApplication(Gtk.Application):
     def finish_window_recreation(self):
         try:
             window = self.ensure_window()
+            window.preserve_visibility_during_recreation()
             self.show_window(window)
         finally:
             self._recreating_window = False
