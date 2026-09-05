@@ -14,6 +14,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 debian_changelog="${script_dir}/debian/changelog"
 aur_pkgbuild="${script_dir}/AUR/PKGBUILD"
 python_constants="${script_dir}/vboard/constants.py"
+rpm_spec="${script_dir}/packaging/rpm/vboard.spec"
+meson_build="${script_dir}/meson.build"
 
 if [[ ! -f "${debian_changelog}" ]]; then
   echo "Error: ${debian_changelog} not found" >&2
@@ -27,6 +29,16 @@ fi
 
 if [[ ! -f "${python_constants}" ]]; then
   echo "Error: ${python_constants} not found" >&2
+  exit 1
+fi
+
+if [[ ! -f "${rpm_spec}" ]]; then
+  echo "Error: ${rpm_spec} not found" >&2
+  exit 1
+fi
+
+if [[ ! -f "${meson_build}" ]]; then
+  echo "Error: ${meson_build} not found" >&2
   exit 1
 fi
 
@@ -44,7 +56,9 @@ fi
 tmp_changelog="$(mktemp)"
 tmp_pkgbuild="$(mktemp)"
 tmp_constants="$(mktemp)"
-trap 'rm -f "${tmp_changelog}" "${tmp_pkgbuild}" "${tmp_constants}"' EXIT
+tmp_rpm_spec="$(mktemp)"
+tmp_meson_build="$(mktemp)"
+trap 'rm -f "${tmp_changelog}" "${tmp_pkgbuild}" "${tmp_constants}" "${tmp_rpm_spec}" "${tmp_meson_build}"' EXIT
 
 {
   printf 'vboard (%s) unstable; urgency=medium\n\n' "${debian_version}"
@@ -61,6 +75,14 @@ mv "${tmp_pkgbuild}" "${aur_pkgbuild}"
 sed "0,/^VERSION = \".*\"/s//VERSION = \"${version}\"/" "${python_constants}" > "${tmp_constants}"
 mv "${tmp_constants}" "${python_constants}"
 
+sed "0,/^Version:[[:space:]].*/s//Version:        ${version}/" "${rpm_spec}" > "${tmp_rpm_spec}"
+mv "${tmp_rpm_spec}" "${rpm_spec}"
+
+sed "0,/^project('vboard', version: '.*')$/s//project('vboard', version: '${version}')/" "${meson_build}" > "${tmp_meson_build}"
+mv "${tmp_meson_build}" "${meson_build}"
+
 echo "Updated ${debian_changelog} to ${debian_version}"
 echo "Updated ${aur_pkgbuild} to ${version}"
 echo "Updated ${python_constants} to ${version}"
+echo "Updated ${rpm_spec} to ${version}"
+echo "Updated ${meson_build} to ${version}"

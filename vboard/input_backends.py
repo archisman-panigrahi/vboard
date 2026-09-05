@@ -1,4 +1,4 @@
-from .constants import MODIFIER_KEYS
+from .constants import FUNCTION_KEYS, MODIFIER_KEYS
 
 try:
     import uinput
@@ -48,6 +48,9 @@ class UInputBackend(InputBackend):
             "-": uinput.KEY_MINUS,
             "=": uinput.KEY_EQUAL,
             "Backspace": uinput.KEY_BACKSPACE,
+            "Delete": uinput.KEY_DELETE,
+            "PageUp": uinput.KEY_PAGEUP,
+            "PageDown": uinput.KEY_PAGEDOWN,
             "Tab": uinput.KEY_TAB,
             "Q": uinput.KEY_Q,
             "W": uinput.KEY_W,
@@ -100,6 +103,12 @@ class UInputBackend(InputBackend):
             "Super_L": uinput.KEY_LEFTMETA,
             "Super_R": uinput.KEY_RIGHTMETA,
         }
+        self.key_map.update(
+            {
+                function_key: self._uinput_key(f"KEY_{function_key}")
+                for function_key in FUNCTION_KEYS
+            }
+        )
         if less_key is not None:
             self.key_map["<"] = less_key
         self.modifier_order = list(MODIFIER_KEYS)

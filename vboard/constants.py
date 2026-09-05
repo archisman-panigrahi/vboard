@@ -1,6 +1,6 @@
 APP_DISPLAY_NAME = "Vboard"
 APP_ID = "io.github.archisman-panigrahi.vboard"
-VERSION = "2.7.0"
+VERSION = "2.7.1"
 
 MODIFIER_KEYS = (
     "Shift_L",
@@ -12,6 +12,12 @@ MODIFIER_KEYS = (
     "Super_L",
     "Super_R",
 )
+
+FUNCTION_KEYS = tuple(f"F{number}" for number in range(1, 13))
+
+LAYOUT_SWITCH_KEY = "Layout"
+SPACER_KEY_PREFIX = "Spacer:"
+NAVIGATION_ROW_KEYS = ("Delete", "PageUp", "PageDown")
 
 DEFAULT_KEYBOARD_LAYOUT = "en"
 
@@ -75,14 +81,15 @@ LIGHT_BACKGROUND_COLORS = {
 KEY_WIDTHS = {
     "Space": 12,
     "CapsLock": 3,
-    "Shift_R": 2,
-    "Shift_L": 2,
+    "Shift_R": 3,
+    "Shift_L": 3,
     "Backspace": 5,
     "`": 1,
     "\\": 4,
     "Enter": 5,
     "<": 2,
+    LAYOUT_SWITCH_KEY: 3,
 }
 
-SUPPORTED_WORD_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'-")
+SUPPORTED_WORD_CONNECTORS = {"'", "\u2019", "\u02bc", "-"}
 SUGGESTION_LIMIT = 5

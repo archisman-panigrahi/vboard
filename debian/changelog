@@ -1,3 +1,9 @@
+vboard (2.7.1-1) unstable; urgency=medium
+
+  * add Ukrainian layout, Plasma integration, and Fedora packaging
+
+ -- Chechulin Serhii <78239416+keefeere@users.noreply.github.com>  Sun, 23 Aug 2026 14:47:21 +0300
+
 vboard (2.7.0-1) unstable; urgency=medium
 
   * add --toggle and --help arguments

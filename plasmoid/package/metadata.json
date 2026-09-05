@@ -1,0 +1,21 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Chechulin Serhii"
+            }
+        ],
+        "Category": "Utilities",
+        "Description": "Show or hide the Vboard on-screen keyboard",
+        "Description[uk]": "Показати або приховати екранну клавіатуру Vboard",
+        "Icon": "input-keyboard",
+        "Id": "io.github.keefeere.vboard-toggle",
+        "License": "GPL-3.0-or-later",
+        "Name": "Vboard Keyboard",
+        "Name[uk]": "Екранна клавіатура Vboard",
+        "Version": "1.0.1",
+        "Website": "https://github.com/archisman-panigrahi/vboard"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
