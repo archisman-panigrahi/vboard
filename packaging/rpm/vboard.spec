@@ -1,5 +1,5 @@
 Name:           vboard
-Version:        2.9.1
+Version:        2.9.2
 Release:        1%{?dist}
 Summary:        Wayland virtual keyboard with modifier key support
 
@@ -95,6 +95,9 @@ python3 -m unittest discover -s tests -v
 
 
 %changelog
+* Sat Sep 05 2026 Chechulin Serhii <78239416+keefeere@users.noreply.github.com> - 2.9.2-1
+- Fix dock-mode visibility and make Plasma language keys cycle directly
+
 * Sat Sep 05 2026 Chechulin Serhii <78239416+keefeere@users.noreply.github.com> - 2.9.1-1
 - Fix Plasma keyboard selection and add instant opaque dock switching
 

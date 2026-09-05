@@ -606,6 +606,7 @@ class VirtualKeyboard(Gtk.Window):
         self.initialize_plasma_layout_sync()
         self.dock_active = configure_dock_window(self, self.dock_mode)
         self.text_input_monitor = None
+        self._suppress_next_auto_hide = False
 
         self.modifiers = {mod_key: False for mod_key in MODIFIER_KEYS}
         self.color_map = dict(COLOR_CHOICES)
@@ -1690,6 +1691,10 @@ class VirtualKeyboard(Gtk.Window):
     def on_text_input_visibility_changed(self, should_show):
         if not self.auto_show_on_text_fields:
             return
+        if not should_show and self._suppress_next_auto_hide:
+            self._suppress_next_auto_hide = False
+            return
+        self._suppress_next_auto_hide = False
         if should_show:
             self.show_all()
             self.set_header_controls_visible(False)
@@ -1698,6 +1703,11 @@ class VirtualKeyboard(Gtk.Window):
             self.set_header_controls_visible(False)
             self.hide()
         self.update_tray_menu()
+
+    def preserve_visibility_during_recreation(self):
+        """Ignore the monitor's initial inactive state for a user-requested rebuild."""
+
+        self._suppress_next_auto_hide = True
 
     def on_destroy_integrations(self, widget):
         if self.text_input_monitor is not None:
