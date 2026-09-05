@@ -3,6 +3,17 @@
 from .gtk import GTK_LAYER_SHELL_AVAILABLE, GtkLayerShell
 
 
+def effective_window_opacity(configured_opacity, dock_active):
+    """Return an opaque surface for docks and the configured value otherwise."""
+
+    if dock_active:
+        return 1.0
+    try:
+        return max(0.0, min(1.0, float(configured_opacity)))
+    except (TypeError, ValueError):
+        return 0.9
+
+
 def configure_dock_window(window, enabled, layer_shell=None):
     """Configure *window* as a bottom layer-shell dock before it is realized.
 

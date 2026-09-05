@@ -21,7 +21,7 @@ from .constants import (
     SUPPORTED_WORD_CONNECTORS,
     VERSION,
 )
-from .dock import configure_dock_window
+from .dock import configure_dock_window, effective_window_opacity
 from .environment import DESKTOP_ENV, is_kde_environment, is_wayland_session
 from .gtk import (
     APPINDICATOR_AVAILABLE,
@@ -1404,6 +1404,13 @@ class VirtualKeyboard(Gtk.Window):
         self.header_end_box.pack_end(self.close_button, False, False, 0)
 
         self.create_button("☰", self.change_visibility, callbacks=1)
+        self.dock_button = self.create_button(
+            "⌄",
+            self.on_dock_button_clicked,
+            callbacks=1,
+            hide_with_menu=False,
+        )
+        self.update_dock_button()
         self.create_button(
             "Options",
             self.open_settings_dialog,
@@ -1630,8 +1637,24 @@ class VirtualKeyboard(Gtk.Window):
         if enabled == self.dock_mode:
             return
         self.dock_mode = enabled
+        if hasattr(self, "dock_button"):
+            self.update_dock_button()
         self.sync_tray_items()
         self.save_settings()
+
+    def update_dock_button(self):
+        if self.dock_mode:
+            self.dock_button.set_label("⌃")
+            self.dock_button.set_tooltip_text("Undock Vboard")
+        else:
+            self.dock_button.set_label("⌄")
+            self.dock_button.set_tooltip_text("Dock Vboard to the bottom")
+
+    def on_dock_button_clicked(self, widget=None):
+        self.set_dock_mode(not self.dock_mode)
+        application = self.get_application()
+        if application is not None and hasattr(application, "recreate_window"):
+            GLib.idle_add(application.recreate_window)
 
     def set_auto_show_on_text_fields(self, enabled):
         enabled = bool(enabled)
@@ -1851,7 +1874,7 @@ class VirtualKeyboard(Gtk.Window):
         gnome_specific = ""
         if "GNOME" in DESKTOP_ENV:
             gnome_specific = "background-image: none;"
-        theme_opacity = max(0.0, min(1.0, float(self.opacity)))
+        theme_opacity = effective_window_opacity(self.opacity, self.dock_active)
         command_modifier_rgb = (
             (0, 0, 0)
             if self.style_variant == "classic" and self.bg_color == "255,0,0"

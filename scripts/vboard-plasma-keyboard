@@ -37,7 +37,11 @@ fi
 
 CACHE_BASE="${XDG_CACHE_HOME:-${HOME}/.cache}"
 QML_ROOT="$CACHE_BASE/vboard/plasma-keyboard/qml"
-STYLE_DIR="$QML_ROOT/QtQuick/VirtualKeyboard/Styles/VboardBreeze"
+# Plasma Keyboard 6.7 explicitly assigns styleName = "Breeze" after startup,
+# which overrides QT_VIRTUALKEYBOARD_STYLE. Put our derived style first in the
+# QML import path under that exact name so both the initial lookup and Plasma's
+# later assignment resolve to the same update-safe override.
+STYLE_DIR="$QML_ROOT/QtQuick/VirtualKeyboard/Styles/Breeze"
 TARGET_STYLE="$STYLE_DIR/style.qml"
 SOURCE_STAMP="$STYLE_DIR/source-path"
 
@@ -63,7 +67,7 @@ if [[ "${1:-}" == "--prepare-style" ]]; then
 fi
 
 export QT_QPA_PLATFORMTHEME="${QT_QPA_PLATFORMTHEME:-kde}"
-export QT_VIRTUALKEYBOARD_STYLE=VboardBreeze
+export QT_VIRTUALKEYBOARD_STYLE=Breeze
 export QML_IMPORT_PATH="$QML_ROOT${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
 export QML2_IMPORT_PATH="$QML_ROOT${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}"
 

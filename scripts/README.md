@@ -18,9 +18,9 @@ This directory contains helper scripts used by vboard installation and integrati
   - Regenerates the variant from the installed Breeze style after Plasma updates.
 
 - configure-plasma-keyboard.sh
-  - Selects the wrapped Plasma Keyboard as the current user's KWin input method.
+  - Selects the wrapped Plasma Keyboard as KWin's shared desktop/lock-screen input method.
   - Optionally configures the SDDM Wayland greeter when run as root with `--sddm`.
-  - Does not restart KWin, Plasma, or SDDM.
+  - Restarts only KWin's input-method process via notified config changes; it does not restart KWin, Plasma, or SDDM.
 
 - setup-uinput.sh
   - Prepares the uinput environment.

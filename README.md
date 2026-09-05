@@ -198,13 +198,20 @@ cycling.
 Select it for the current Plasma session with:
 
 ```bash
-~/.local/share/vboard/scripts/configure-plasma-keyboard.sh --session
+~/.local/share/vboard/scripts/configure-plasma-keyboard.sh --desktop-and-lock-screen
 ```
 
 For a system package installation, use
 `/usr/share/vboard/scripts/configure-plasma-keyboard.sh` instead. You can also
 select **Vboard Plasma Keyboard** in **System Settings → Virtual Keyboard**.
 The same KWin input method is then available on Plasma's lock screen.
+
+Plasma does not expose separate input-method provider selectors for the
+unlocked desktop and lock screen: both belong to the same running KWin and use
+the `InputMethod` entry in `kwinrc`. Vboard's GTK dock is used only on the
+unlocked desktop; the wrapped native Plasma Keyboard remains the secure
+provider that the lock screen can display. SDDM is genuinely separate because
+it starts its own KWin compositor, so it is configured independently below.
 
 To apply the wrapper to a Wayland SDDM greeter after a system-wide install:
 
@@ -215,10 +222,15 @@ sudo /usr/share/vboard/scripts/configure-plasma-keyboard.sh --sddm
 This writes a separate SDDM drop-in and does not restart the display manager;
 it takes effect on the next SDDM start. The generated keyboard style lives in
 each account's cache and is refreshed automatically from the installed Breeze
-style, so Plasma upgrades do not overwrite it.
+style, so Plasma upgrades do not overwrite it. Plasma Keyboard 6.7 explicitly
+selects the style named `Breeze`; the wrapper therefore places its derived
+`Breeze` override first in the process-local QML import path instead of editing
+the system copy.
 
 Enable **Dock Mode** in Vboard Options and restart Vboard to reserve the bottom
-work area. Enable **Auto-show on text fields** to follow KWin's Wayland
+work area, or use the `⌄` header button to switch immediately. Dock mode forces
+an opaque keyboard surface; the configured transparency is kept for floating
+mode. Enable **Auto-show on text fields** to follow KWin's Wayland
 text-input state. When native Plasma Keyboard is visible (including secure
 screens), Vboard hides and lets it take precedence.
 

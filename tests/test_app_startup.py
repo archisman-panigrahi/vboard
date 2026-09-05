@@ -32,6 +32,9 @@ class FakeWindow:
     def toggle_visibility(self):
         self.calls.append("toggle")
 
+    def destroy(self):
+        self.calls.append("destroy")
+
 
 class FakeCommandLine:
     def __init__(self, *args):
@@ -99,6 +102,22 @@ class StartupVisibilityTest(unittest.TestCase):
         )
 
         self.assertEqual(window.calls, ["toggle"])
+
+    def test_dock_change_recreates_the_window(self):
+        window = FakeWindow()
+        application = SimpleNamespace(
+            window=window,
+            _recreating_window=False,
+            calls=[],
+        )
+        application.hold = lambda: application.calls.append("hold")
+
+        result = VboardApplication.recreate_window(application)
+
+        self.assertFalse(result)
+        self.assertTrue(application._recreating_window)
+        self.assertEqual(application.calls, ["hold"])
+        self.assertEqual(window.calls, ["destroy"])
 
 
 if __name__ == "__main__":

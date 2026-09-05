@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from vboard.dock import configure_dock_window
+from vboard.dock import configure_dock_window, effective_window_opacity
 
 
 class FakeLayerShell:
@@ -32,6 +32,12 @@ class FakeLayerShell:
 
 
 class DockModeTest(unittest.TestCase):
+    def test_docked_window_is_always_opaque(self):
+        self.assertEqual(effective_window_opacity("0.42", True), 1.0)
+
+    def test_floating_window_keeps_configured_opacity(self):
+        self.assertEqual(effective_window_opacity("0.42", False), 0.42)
+
     def test_configures_bottom_dock_and_exclusive_zone(self):
         window = object()
         layer_shell = FakeLayerShell()
