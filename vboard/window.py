@@ -649,7 +649,6 @@ class VirtualKeyboard(Gtk.Window):
         self.layout_character_lookup = {}
         self.suggestion_font_size = self.BASE_SUGGESTION_FONT_SIZE
         self.gesture_controller = None
-        self.set_titlebar(self.header)
         self.set_name("vboard-main")
         self.set_default_icon_name(self.get_app_icon_name())
 
@@ -664,6 +663,7 @@ class VirtualKeyboard(Gtk.Window):
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.add(content)
+        self.attach_header(content)
 
         self.suggestion_revealer = Gtk.Revealer()
         self.suggestion_revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN)
@@ -1458,6 +1458,14 @@ class VirtualKeyboard(Gtk.Window):
 
         self.color_combobox.set_active(active_index)
         self.set_header_controls_visible(False)
+
+    def attach_header(self, content):
+        """Keep controls visible when layer-shell has no decorated titlebar."""
+
+        if self.dock_active:
+            content.pack_start(self.header, False, False, 0)
+        else:
+            self.set_titlebar(self.header)
 
     def open_settings_dialog(self, widget=None):
         if self.settings_dialog is not None:

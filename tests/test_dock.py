@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from vboard.dock import configure_dock_window, effective_window_opacity
+from vboard.window import VirtualKeyboard
 
 
 class FakeLayerShell:
@@ -32,6 +33,36 @@ class FakeLayerShell:
 
 
 class DockModeTest(unittest.TestCase):
+    def test_docked_header_is_part_of_window_content(self):
+        calls = []
+        window = SimpleNamespace(
+            dock_active=True,
+            header="header",
+            set_titlebar=lambda header: calls.append(("titlebar", header)),
+        )
+        content = SimpleNamespace(
+            pack_start=lambda *args: calls.append(("content", *args))
+        )
+
+        VirtualKeyboard.attach_header(window, content)
+
+        self.assertEqual(calls, [("content", "header", False, False, 0)])
+
+    def test_floating_header_remains_a_titlebar(self):
+        calls = []
+        window = SimpleNamespace(
+            dock_active=False,
+            header="header",
+            set_titlebar=lambda header: calls.append(("titlebar", header)),
+        )
+        content = SimpleNamespace(
+            pack_start=lambda *args: calls.append(("content", *args))
+        )
+
+        VirtualKeyboard.attach_header(window, content)
+
+        self.assertEqual(calls, [("titlebar", "header")])
+
     def test_docked_window_is_always_opaque(self):
         self.assertEqual(effective_window_opacity("0.42", True), 1.0)
 
