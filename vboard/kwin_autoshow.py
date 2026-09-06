@@ -1,5 +1,8 @@
 """Observe KWin text-input state without implementing an input-method protocol."""
 
+import os
+import subprocess
+
 KWIN_BUS_NAME = "org.kde.KWin"
 KWIN_OBJECT_PATH = "/VirtualKeyboard"
 KWIN_INTERFACE = "org.kde.kwin.VirtualKeyboard"
@@ -9,6 +12,7 @@ SCREENSAVER_OBJECT_PATH = "/ScreenSaver"
 SCREENSAVER_INTERFACE = "org.freedesktop.ScreenSaver"
 KDE_SCREENSAVER_BUS_NAME = "org.kde.screensaver"
 KDE_SCREENSAVER_INTERFACE = "org.kde.screensaver"
+KWIN_VIRTUAL_KEYBOARD_NEVER = 0
 
 
 def should_show_vboard(text_input_active, plasma_keyboard_visible):
@@ -103,17 +107,19 @@ class KWinTextInputMonitor:
 
 
 class KWinVirtualKeyboardSuppressor:
-    """Temporarily deactivate KWin's native input panel while Vboard is shown."""
+    """Temporarily disable KWin's native input panel while Vboard is shown."""
 
-    def __init__(self, gio, glib):
+    def __init__(self, gio, glib, config_writer=None):
         self.gio = gio
         self.glib = glib
+        self.config_writer = config_writer or self._write_saved_mode
         self.proxy = None
         self.screen_saver_proxy = None
         self.kde_screen_saver_proxy = None
         self.vboard_visible = False
         self.screen_locked = False
         self.suppression_active = False
+        self._original_mode = None
         self._enforce_timer_id = None
 
     def _new_proxy(self, bus_name, object_path, interface):
@@ -179,9 +185,9 @@ class KWinVirtualKeyboardSuppressor:
         except (self.glib.Error, OSError, RuntimeError):
             self.kde_screen_saver_proxy = None
 
-    def _get_bool(self, name):
+    def _get_property(self, name, default=None):
         if self.proxy is None:
-            return False
+            return default
         try:
             result = self.proxy.call_sync(
                 f"{DBUS_PROPERTIES_INTERFACE}.Get",
@@ -190,11 +196,18 @@ class KWinVirtualKeyboardSuppressor:
                 -1,
                 None,
             )
-            return bool(result.unpack()[0]) if result is not None else False
+            return result.unpack()[0] if result is not None else default
         except (self.glib.Error, OSError, RuntimeError):
-            return False
+            return default
 
-    def _set_active(self, active):
+    def _get_bool(self, name):
+        return bool(self._get_property(name, False))
+
+    def _get_mode(self):
+        value = self._get_property("mode")
+        return int(value) if value is not None else None
+
+    def _set_property(self, name, value):
         if self.proxy is None:
             return False
         try:
@@ -202,11 +215,7 @@ class KWinVirtualKeyboardSuppressor:
                 f"{DBUS_PROPERTIES_INTERFACE}.Set",
                 self.glib.Variant(
                     "(ssv)",
-                    (
-                        KWIN_INTERFACE,
-                        "active",
-                        self.glib.Variant("b", bool(active)),
-                    ),
+                    (KWIN_INTERFACE, name, value),
                 ),
                 self.gio.DBusCallFlags.NONE,
                 -1,
@@ -217,6 +226,58 @@ class KWinVirtualKeyboardSuppressor:
             print(f"Warning: Could not update KWin's virtual keyboard ({exc}).")
             return False
 
+    def _set_active(self, active):
+        return self._set_property("active", self.glib.Variant("b", bool(active)))
+
+    def _set_mode(self, mode):
+        return self._set_property("mode", self.glib.Variant("i", int(mode)))
+
+    @staticmethod
+    def _write_saved_mode(mode):
+        """Restore the persistent value without notifying the running KWin."""
+
+        command = os.environ.get("VBOARD_KWRITECONFIG", "/usr/bin/kwriteconfig6")
+        try:
+            result = subprocess.run(
+                [
+                    command,
+                    "--file",
+                    "kwinrc",
+                    "--group",
+                    "Wayland",
+                    "--key",
+                    "VirtualKeyboardMode",
+                    str(int(mode)),
+                ],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return result.returncode == 0
+        except OSError:
+            return False
+
+    def _disable_native_panel(self):
+        mode = self._get_mode()
+        self._original_mode = mode
+        if mode is None or mode == KWIN_VIRTUAL_KEYBOARD_NEVER:
+            return
+
+        if not self._set_mode(KWIN_VIRTUAL_KEYBOARD_NEVER):
+            self._original_mode = None
+            return
+
+        # KWin persists every D-Bus mode change. Put the user's original value
+        # straight back on disk without a reload notification, while keeping
+        # the running compositor in Never mode until Vboard is hidden.
+        if not self.config_writer(mode):
+            print(
+                "Warning: Could not preserve KWin's saved virtual keyboard "
+                "mode; using active-only suppression."
+            )
+            self._set_mode(mode)
+            self._original_mode = None
+
     def set_vboard_visible(self, visible):
         self.vboard_visible = bool(visible)
         self._apply_requested_state()
@@ -225,28 +286,25 @@ class KWinVirtualKeyboardSuppressor:
         should_suppress = self.vboard_visible and not self.screen_locked
         if should_suppress and not self.suppression_active:
             self.suppression_active = True
+            self._disable_native_panel()
             self._set_active(False)
         elif not should_suppress and self.suppression_active:
             self._release_suppression()
 
     def _release_suppression(self):
         self.suppression_active = False
+        original_mode = self._original_mode
+        self._original_mode = None
+        if original_mode is not None and self._get_mode() != original_mode:
+            self._set_mode(original_mode)
 
     def _on_properties_changed(self, proxy, changed, invalidated):
         names = set(changed.unpack()) | set(invalidated)
-        if (
-            self.suppression_active
-            and "active" in names
-            and self._get_bool("active")
-        ):
+        if self.suppression_active and names.intersection({"active", "mode"}):
             self._queue_enforcement()
 
     def _on_kwin_signal(self, proxy, sender_name, signal_name, parameters):
-        if (
-            signal_name == "activeChanged"
-            and self.suppression_active
-            and self._get_bool("active")
-        ):
+        if signal_name in ("activeChanged", "modeChanged") and self.suppression_active:
             self._queue_enforcement()
 
     def _queue_enforcement(self):
@@ -255,13 +313,15 @@ class KWinVirtualKeyboardSuppressor:
 
     def _enforce_suppression(self):
         self._enforce_timer_id = None
-        if (
-            self.suppression_active
-            and self.vboard_visible
-            and not self.screen_locked
-            and self._get_bool("active")
-        ):
-            self._set_active(False)
+        if self.suppression_active and self.vboard_visible and not self.screen_locked:
+            if (
+                self._original_mode is not None
+                and self._get_mode() != KWIN_VIRTUAL_KEYBOARD_NEVER
+                and self._set_mode(KWIN_VIRTUAL_KEYBOARD_NEVER)
+            ):
+                self.config_writer(self._original_mode)
+            if self._get_bool("active"):
+                self._set_active(False)
         return False
 
     def _set_screen_locked(self, locked):

@@ -39,7 +39,7 @@ and user-defined JSON layouts.
 - **True dock mode**: Uses Wayland layer shell to reserve space at the bottom so normal windows do not sit underneath the keyboard
 - **Text-field auto-show on Plasma Wayland**: Follows KWin's text-input state while yielding to Plasma Keyboard whenever its secure panel is visible
 - **Secure Plasma integration**: An optional wrapper keeps KDE's native keyboard for lock screen and SDDM while making the language key switch directly without a popup
-- **No duplicate Plasma keyboard**: While Vboard is visible on Plasma Wayland, KWin's native input panel is temporarily deactivated and restored when Vboard hides
+- **No duplicate Plasma keyboard**: While Vboard is visible on Plasma Wayland, KWin's native input panel is temporarily disabled and its mode is restored when Vboard hides
 - **uinput input backend**: Injects keys through Linux `uinput`
 
 Implementation notes for gesture typing are documented in [GESTURE_TYPING.md](./GESTURE_TYPING.md).
@@ -210,12 +210,14 @@ select **Vboard Plasma Keyboard** in **System Settings → Virtual Keyboard**.
 The same KWin input method is then available on Plasma's lock screen.
 
 While Vboard is visible on the unlocked Plasma Wayland desktop, it temporarily
-deactivates KWin's native input panel over the session D-Bus API. When Vboard
-hides or exits, it stops suppressing the panel without actively reopening it;
-KWin can show it naturally on the next text-field interaction. Suppression is
-released before the session locks, so the wrapped native keyboard remains
-available on the lock screen. This does not change `VirtualKeyboardEnabled` or
-the configured input-method provider.
+sets KWin's native input panel to `Never` mode over the session D-Bus API. This
+prevents Plasma Keyboard from reserving a second input-panel geometry when a
+text field is touched. Vboard immediately restores the user's saved mode on
+disk, keeps only the running compositor suppressed, and restores that runtime
+mode when Vboard hides or exits without actively reopening Plasma Keyboard.
+Suppression is released before the session locks, so the wrapped native
+keyboard remains available on the lock screen. This does not change
+`VirtualKeyboardEnabled` or the configured input-method provider.
 
 Plasma does not expose separate input-method provider selectors for the
 unlocked desktop and lock screen: both belong to the same running KWin and use
@@ -288,8 +290,9 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 Run `vboard --toggle` to start and show vboard when it is not running, or to
 show/hide the existing instance. The included Plasma widget uses this command,
 and it remains responsive when **Start Minimized** is enabled. On Plasma
-Wayland, this path deactivates the native input panel before mapping the Vboard
-window, avoiding a brief overlap between the two keyboards.
+Wayland, this path disables the native input panel before mapping the Vboard
+window, avoiding overlap and duplicate reserved geometry between the two
+keyboards.
 
 ## Configuration
 vboard saves its settings to `~/.config/vboard/settings.conf`. This configuration file stores:

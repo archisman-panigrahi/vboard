@@ -2807,7 +2807,11 @@ class VirtualKeyboard(Gtk.Window):
             sequence = event.get_event_sequence()
         elif hasattr(event, "sequence"):
             sequence = event.sequence
-        return id(sequence) if sequence is not None else id(event)
+        # PyGObject can create a new Python wrapper around the same native
+        # GdkEventSequence for every event. Its boxed equality/hash use the
+        # native sequence identity; Python's id() only identifies the temporary
+        # wrapper and therefore made TOUCH_END miss the matching TOUCH_BEGIN.
+        return sequence if sequence is not None else event
 
     def on_key_touch_event(self, widget, event, key_event):
         sequence_id = self.get_touch_sequence_id(event)
@@ -2816,16 +2820,28 @@ class VirtualKeyboard(Gtk.Window):
         elif event.type == Gdk.EventType.TOUCH_UPDATE:
             self.update_touch_key(sequence_id, widget, event)
         elif event.type in (Gdk.EventType.TOUCH_END, Gdk.EventType.TOUCH_CANCEL):
-            self.finish_touch_key(
+            finished = self.finish_touch_key(
                 sequence_id,
                 event,
                 cancelled=event.type == Gdk.EventType.TOUCH_CANCEL,
             )
+            if not finished:
+                # Defensive fallback for bindings/backends that don't preserve
+                # EventSequence equality. An end delivered to this key must not
+                # leave any repeat timer or held modifier belonging to it alive.
+                self.finish_touch_keys_for_widget(
+                    widget,
+                    event,
+                    cancelled=event.type == Gdk.EventType.TOUCH_CANCEL,
+                )
         return True
 
     def begin_touch_key(self, sequence_id, widget, event, key_event):
         if sequence_id in self.active_touch_keys:
             return
+
+        if key_event not in self.modifiers:
+            self.mark_active_touch_modifiers_used()
 
         self.clear_key_button_visual_states(except_button=widget)
         self.clear_suggestion_override(update=False)
@@ -2837,6 +2853,8 @@ class VirtualKeyboard(Gtk.Window):
             "repeat_source": None,
             "gesture_pending": False,
             "kind": "key",
+            "modifier_was_active": False,
+            "modifier_used_as_hold": False,
         }
         self.active_touch_keys[sequence_id] = state
 
@@ -2854,12 +2872,18 @@ class VirtualKeyboard(Gtk.Window):
 
         if key_event in self.modifiers:
             state["kind"] = "modifier"
+            state["modifier_was_active"] = self.modifiers[key_event]
             held_count = self.held_touch_modifiers.get(key_event, 0)
             self.held_touch_modifiers[key_event] = held_count + 1
             if held_count == 0:
                 self.backend.press_key(key_event)
                 self.update_modifier(key_event, True)
                 self.update_key_labels()
+            state["delay_source"] = GLib.timeout_add(
+                self.KEY_REPEAT_DELAY_MS,
+                self.mark_touch_modifier_held,
+                sequence_id,
+            )
             return
 
         if (
@@ -2876,6 +2900,23 @@ class VirtualKeyboard(Gtk.Window):
             self.start_touch_repeat,
             sequence_id,
         )
+
+    def mark_active_touch_modifiers_used(self):
+        for state in self.active_touch_keys.values():
+            if state["kind"] != "modifier":
+                continue
+            state["modifier_used_as_hold"] = True
+            if state["delay_source"] is not None:
+                GLib.source_remove(state["delay_source"])
+                state["delay_source"] = None
+
+    def mark_touch_modifier_held(self, sequence_id):
+        state = self.active_touch_keys.get(sequence_id)
+        if state is None or state["kind"] != "modifier":
+            return False
+        state["delay_source"] = None
+        state["modifier_used_as_hold"] = True
+        return False
 
     def update_touch_key(self, sequence_id, widget, event):
         state = self.active_touch_keys.get(sequence_id)
@@ -2914,7 +2955,7 @@ class VirtualKeyboard(Gtk.Window):
     def finish_touch_key(self, sequence_id, event=None, cancelled=False):
         state = self.active_touch_keys.pop(sequence_id, None)
         if state is None:
-            return
+            return False
 
         for source_name in ("delay_source", "repeat_source"):
             source_id = state[source_name]
@@ -2927,7 +2968,11 @@ class VirtualKeyboard(Gtk.Window):
             if held_count <= 1:
                 self.held_touch_modifiers.pop(key_event, None)
                 self.backend.release_key(key_event)
-                self.update_modifier(key_event, False)
+                if state["modifier_used_as_hold"]:
+                    next_active = state["modifier_was_active"]
+                else:
+                    next_active = not state["modifier_was_active"]
+                self.update_modifier(key_event, next_active)
                 self.update_key_labels()
             else:
                 self.held_touch_modifiers[key_event] = held_count - 1
@@ -2942,6 +2987,17 @@ class VirtualKeyboard(Gtk.Window):
                 )
 
         self.schedule_key_button_visual_reset()
+        return True
+
+    def finish_touch_keys_for_widget(self, widget, event=None, cancelled=False):
+        matching_sequences = [
+            sequence_id
+            for sequence_id, state in self.active_touch_keys.items()
+            if state["widget"] is widget
+        ]
+        for sequence_id in matching_sequences:
+            self.finish_touch_key(sequence_id, event, cancelled)
+        return bool(matching_sequences)
 
     def cancel_all_touch_inputs(self):
         for sequence_id in list(self.active_touch_keys):
@@ -2952,6 +3008,8 @@ class VirtualKeyboard(Gtk.Window):
         return False
 
     def on_window_button_release_event(self, widget, event):
+        if not self.is_pointer_emulated_event(event):
+            self.stop_key_repeat()
         self.schedule_key_button_visual_reset()
         return False
 

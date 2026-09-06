@@ -34,6 +34,22 @@ class FakeGLib:
         self.callbacks.pop(source, None)
 
 
+class NativeSequenceWrapper:
+    """Model distinct Python wrappers for one native GdkEventSequence."""
+
+    def __init__(self, native_id):
+        self.native_id = native_id
+
+    def __hash__(self):
+        return hash(self.native_id)
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, NativeSequenceWrapper)
+            and self.native_id == other.native_id
+        )
+
+
 class TouchInputTest(unittest.TestCase):
     def make_keyboard(self):
         keyboard = SimpleNamespace(
@@ -69,6 +85,20 @@ class TouchInputTest(unittest.TestCase):
             keyboard,
             sequence,
         )
+        keyboard.mark_touch_modifier_held = lambda sequence: (
+            VirtualKeyboard.mark_touch_modifier_held(keyboard, sequence)
+        )
+        keyboard.mark_active_touch_modifiers_used = lambda: (
+            VirtualKeyboard.mark_active_touch_modifiers_used(keyboard)
+        )
+        keyboard.finish_touch_key = lambda sequence, event=None, cancelled=False: (
+            VirtualKeyboard.finish_touch_key(
+                keyboard,
+                sequence,
+                event,
+                cancelled,
+            )
+        )
         return keyboard
 
     def setUp(self):
@@ -77,7 +107,7 @@ class TouchInputTest(unittest.TestCase):
         self.glib_patch.start()
         self.addCleanup(self.glib_patch.stop)
 
-    def test_touch_modifier_is_held_until_its_sequence_ends(self):
+    def test_short_touch_modifier_toggles_sticky_state(self):
         keyboard = self.make_keyboard()
 
         VirtualKeyboard.begin_touch_key(
@@ -92,11 +122,52 @@ class TouchInputTest(unittest.TestCase):
 
         VirtualKeyboard.finish_touch_key(keyboard, 1)
 
-        self.assertFalse(keyboard.modifiers["Ctrl_L"])
+        self.assertTrue(keyboard.modifiers["Ctrl_L"])
         self.assertEqual(
             keyboard.backend.events,
             [("down", "Ctrl_L"), ("up", "Ctrl_L")],
         )
+
+        VirtualKeyboard.begin_touch_key(
+            keyboard,
+            2,
+            object(),
+            object(),
+            "Ctrl_L",
+        )
+        VirtualKeyboard.finish_touch_key(keyboard, 2)
+
+        self.assertFalse(keyboard.modifiers["Ctrl_L"])
+
+    def test_held_touch_modifier_is_momentary(self):
+        keyboard = self.make_keyboard()
+        VirtualKeyboard.begin_touch_key(
+            keyboard,
+            1,
+            object(),
+            object(),
+            "Shift_L",
+        )
+
+        VirtualKeyboard.mark_touch_modifier_held(keyboard, 1)
+        VirtualKeyboard.finish_touch_key(keyboard, 1)
+
+        self.assertFalse(keyboard.modifiers["Shift_L"])
+
+    def test_modifier_used_with_second_touch_is_momentary(self):
+        keyboard = self.make_keyboard()
+        VirtualKeyboard.begin_touch_key(
+            keyboard,
+            1,
+            object(),
+            object(),
+            "Shift_L",
+        )
+        VirtualKeyboard.mark_active_touch_modifiers_used(keyboard)
+
+        VirtualKeyboard.finish_touch_key(keyboard, 1)
+
+        self.assertFalse(keyboard.modifiers["Shift_L"])
 
     def test_each_touch_key_has_an_independent_repeat_timer(self):
         keyboard = self.make_keyboard()
@@ -130,6 +201,36 @@ class TouchInputTest(unittest.TestCase):
         event = SimpleNamespace(get_pointer_emulated=lambda: True)
 
         self.assertTrue(VirtualKeyboard.is_pointer_emulated_event(event))
+
+    def test_native_sequence_identity_survives_distinct_python_wrappers(self):
+        begin_event = SimpleNamespace(
+            get_event_sequence=lambda: NativeSequenceWrapper(42)
+        )
+        end_event = SimpleNamespace(
+            get_event_sequence=lambda: NativeSequenceWrapper(42)
+        )
+
+        begin_id = VirtualKeyboard.get_touch_sequence_id(begin_event)
+        end_id = VirtualKeyboard.get_touch_sequence_id(end_event)
+
+        self.assertEqual(begin_id, end_id)
+        self.assertNotEqual(id(begin_id), id(end_id))
+
+    def test_release_fallback_cancels_repeat_for_the_same_widget(self):
+        keyboard = self.make_keyboard()
+        widget = object()
+        VirtualKeyboard.begin_touch_key(keyboard, 1, widget, object(), "A")
+        self.fake_glib.callbacks.pop(1)
+        VirtualKeyboard.start_touch_repeat(keyboard, 1)
+
+        finished = VirtualKeyboard.finish_touch_keys_for_widget(
+            keyboard,
+            widget,
+        )
+
+        self.assertTrue(finished)
+        self.assertEqual(keyboard.active_touch_keys, {})
+        self.assertEqual(self.fake_glib.callbacks, {})
 
 
 if __name__ == "__main__":

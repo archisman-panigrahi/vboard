@@ -41,9 +41,11 @@ class FakeGio:
 
 
 class FakeProxy:
-    def __init__(self, active):
+    def __init__(self, active, mode=1):
         self.active = active
-        self.calls = []
+        self.mode = mode
+        self.active_calls = []
+        self.mode_calls = []
 
     def get_cached_property(self, name):
         if name == "active":
@@ -54,15 +56,19 @@ class FakeProxy:
         if method.endswith(".Get"):
             interface, property_name = parameters.unpack()
             self.assert_property_call(interface, property_name)
-            return FakeVariant((self.active,))
+            return FakeVariant((getattr(self, property_name),))
         interface, property_name, value = parameters.unpack()
         self.assert_property_call(interface, property_name)
-        self.active = value.unpack()
-        self.calls.append(self.active)
+        unpacked = value.unpack()
+        setattr(self, property_name, unpacked)
+        getattr(self, f"{property_name}_calls").append(unpacked)
 
     @staticmethod
     def assert_property_call(interface, property_name):
-        if interface != "org.kde.kwin.VirtualKeyboard" or property_name != "active":
+        if interface != "org.kde.kwin.VirtualKeyboard" or property_name not in (
+            "active",
+            "mode",
+        ):
             raise AssertionError((interface, property_name))
 
 
@@ -125,31 +131,40 @@ class KWinAutoShowPolicyTest(unittest.TestCase):
 
 
 class KWinVirtualKeyboardSuppressorTest(unittest.TestCase):
-    def make_suppressor(self, active):
+    def make_suppressor(self, active, mode=1):
         glib = FakeGLib()
-        suppressor = KWinVirtualKeyboardSuppressor(FakeGio, glib)
-        suppressor.proxy = FakeProxy(active)
-        return suppressor, glib
+        saved_modes = []
+        suppressor = KWinVirtualKeyboardSuppressor(
+            FakeGio,
+            glib,
+            config_writer=lambda saved_mode: saved_modes.append(saved_mode) or True,
+        )
+        suppressor.proxy = FakeProxy(active, mode)
+        return suppressor, glib, saved_modes
 
     def test_deactivates_without_reopening_the_system_keyboard_on_hide(self):
-        suppressor, glib = self.make_suppressor(True)
+        suppressor, glib, saved_modes = self.make_suppressor(True)
 
         suppressor.set_vboard_visible(True)
         suppressor.set_vboard_visible(False)
 
-        self.assertEqual(suppressor.proxy.calls, [False])
+        self.assertEqual(suppressor.proxy.active_calls, [False])
+        self.assertEqual(suppressor.proxy.mode_calls, [0, 1])
+        self.assertEqual(saved_modes, [1])
         self.assertFalse(suppressor.suppression_active)
 
     def test_does_not_activate_a_system_keyboard_that_was_inactive(self):
-        suppressor, glib = self.make_suppressor(False)
+        suppressor, glib, saved_modes = self.make_suppressor(False)
 
         suppressor.set_vboard_visible(True)
         suppressor.set_vboard_visible(False)
 
-        self.assertEqual(suppressor.proxy.calls, [False])
+        self.assertEqual(suppressor.proxy.active_calls, [False])
+        self.assertEqual(suppressor.proxy.mode_calls, [0, 1])
+        self.assertEqual(saved_modes, [1])
 
     def test_represses_kwin_reactivation_without_reopening_on_hide(self):
-        suppressor, glib = self.make_suppressor(False)
+        suppressor, glib, saved_modes = self.make_suppressor(False)
         suppressor.set_vboard_visible(True)
         suppressor.proxy.active = True
 
@@ -162,17 +177,47 @@ class KWinVirtualKeyboardSuppressorTest(unittest.TestCase):
         glib.flush()
         suppressor.set_vboard_visible(False)
 
-        self.assertEqual(suppressor.proxy.calls, [False, False])
+        self.assertEqual(suppressor.proxy.active_calls, [False, False])
+        self.assertEqual(suppressor.proxy.mode_calls, [0, 1])
+        self.assertEqual(saved_modes, [1])
 
     def test_releases_for_lock_screen_and_resuppresses_after_unlock(self):
-        suppressor, glib = self.make_suppressor(True)
+        suppressor, glib, saved_modes = self.make_suppressor(True)
         suppressor.set_vboard_visible(True)
 
         suppressor._set_screen_locked(True)
         suppressor._set_screen_locked(False)
 
-        self.assertEqual(suppressor.proxy.calls, [False, False])
+        self.assertEqual(suppressor.proxy.active_calls, [False, False])
+        self.assertEqual(suppressor.proxy.mode_calls, [0, 1, 0])
+        self.assertEqual(saved_modes, [1, 1])
         self.assertTrue(suppressor.suppression_active)
+
+    def test_preserves_a_user_selected_never_mode(self):
+        suppressor, glib, saved_modes = self.make_suppressor(True, mode=0)
+
+        suppressor.set_vboard_visible(True)
+        suppressor.set_vboard_visible(False)
+
+        self.assertEqual(suppressor.proxy.active_calls, [False])
+        self.assertEqual(suppressor.proxy.mode_calls, [])
+        self.assertEqual(saved_modes, [])
+
+    def test_represses_a_mode_change_while_vboard_is_visible(self):
+        suppressor, glib, saved_modes = self.make_suppressor(False)
+        suppressor.set_vboard_visible(True)
+        suppressor.proxy.mode = 1
+
+        suppressor._on_kwin_signal(
+            suppressor.proxy,
+            None,
+            "modeChanged",
+            FakeVariant(()),
+        )
+        glib.flush()
+
+        self.assertEqual(suppressor.proxy.mode_calls, [0, 0])
+        self.assertEqual(saved_modes, [1, 1])
 
 
 if __name__ == "__main__":
