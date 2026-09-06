@@ -1,7 +1,7 @@
 import bisect
 import math
 
-from .constants import SUGGESTION_LIMIT
+from .constants import SUGGESTION_LIMIT, SUPPORTED_WORD_CONNECTORS
 from .gtk import GLib, Gtk
 
 GESTURE_NEAREST_KEY_COUNT = 3
@@ -17,7 +17,7 @@ GESTURE_FEEDBACK_SAMPLE_DISTANCE_FACTOR = 0.3
 def key_event_to_gesture_char(key_event):
     if len(key_event) == 1 and key_event.isalpha():
         return key_event.lower()
-    if key_event in {"-", "'"}:
+    if key_event in SUPPORTED_WORD_CONNECTORS:
         return key_event
     return None
 
@@ -373,8 +373,12 @@ class GestureTypingController:
     def note_non_gesture_key(self):
         self.auto_space_pending = False
 
+    def key_event_to_active_gesture_char(self, key_event):
+        key_label = self.keyboard.get_active_key_labels().get(key_event, key_event)
+        return key_event_to_gesture_char(key_label)
+
     def handle_key_press(self, widget, event, key_event):
-        if key_event_to_gesture_char(key_event) is None:
+        if self.key_event_to_active_gesture_char(key_event) is None:
             return False
         if self.keyboard.has_active_command_modifier():
             return False
@@ -397,13 +401,21 @@ class GestureTypingController:
         self.finish_gesture(key_event)
         return True
 
+    def cancel_key_gesture(self, widget):
+        if self.active_gesture is None or self.active_gesture["widget"] is not widget:
+            return False
+        self.active_gesture = None
+        self._pending_gesture_points = []
+        self.schedule_gesture_feedback_clear()
+        return True
+
     def refresh_layout_cache(self):
         gesture_key_centers = {}
         gesture_key_rects = {}
         key_sizes = []
 
         for key_event, button in self.keyboard.key_buttons.items():
-            gesture_char = key_event_to_gesture_char(key_event)
+            gesture_char = self.key_event_to_active_gesture_char(key_event)
             if gesture_char is None:
                 continue
 
@@ -470,7 +482,7 @@ class GestureTypingController:
 
         gesture_key = self.find_gesture_key_at_point(point)
         if gesture_key is None and fallback_key_event is not None:
-            gesture_key = key_event_to_gesture_char(fallback_key_event)
+            gesture_key = self.key_event_to_active_gesture_char(fallback_key_event)
         if gesture_key is None:
             return
 

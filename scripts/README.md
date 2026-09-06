@@ -12,6 +12,16 @@ This directory contains helper scripts used by vboard installation and integrati
   - Cleans up empty config state where possible.
   - Triggers `qdbus6 ... reconfigure` or falls back to `qdbus ... reconfigure` when available.
 
+- vboard-plasma-keyboard
+  - Starts KDE's secure Plasma Keyboard with an update-safe derived layout tree.
+  - Makes the language key cycle directly instead of opening a popup.
+  - Regenerates the layouts from Plasma's installed files after Plasma updates.
+
+- configure-plasma-keyboard.sh
+  - Selects the wrapped Plasma Keyboard as KWin's shared desktop/lock-screen input method.
+  - Optionally configures the SDDM Wayland greeter when run as root with `--sddm`.
+  - Restarts only KWin's input-method process via notified config changes; it does not restart KWin, Plasma, or SDDM.
+
 - setup-uinput.sh
   - Prepares the uinput environment.
   - Must run as root.

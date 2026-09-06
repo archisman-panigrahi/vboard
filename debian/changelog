@@ -1,3 +1,39 @@
+vboard (2.10.0-1) unstable; urgency=medium
+
+  * Add multitouch holds and suppress the native Plasma keyboard while Vboard is visible
+
+ -- Chechulin Serhii <78239416+keefeere@users.noreply.github.com>  Sun, 06 Sep 2026 13:50:00 +0300
+
+vboard (2.9.2-1) unstable; urgency=medium
+
+  * Fix dock-mode visibility and make Plasma language keys cycle directly
+
+ -- Chechulin Serhii <78239416+keefeere@users.noreply.github.com>  Sat, 05 Sep 2026 23:54:02 +0300
+
+vboard (2.9.1-1) unstable; urgency=medium
+
+  * Fix Plasma keyboard selection and add instant opaque dock switching
+
+ -- Chechulin Serhii <78239416+keefeere@users.noreply.github.com>  Sat, 05 Sep 2026 21:12:18 +0300
+
+vboard (2.9.0-1) unstable; urgency=medium
+
+  * Add true dock mode, KWin text-field auto-show, and secure Plasma Keyboard integration
+
+ -- Chechulin Serhii <78239416+keefeere@users.noreply.github.com>  Sat, 05 Sep 2026 20:08:30 +0300
+
+vboard (2.8.0-1) unstable; urgency=medium
+
+  * Add function and navigation keys, secondary layouts, and reliable minimized startup
+
+ -- Chechulin Serhii <78239416+keefeere@users.noreply.github.com>  Mon, 24 Aug 2026 17:20:52 +0300
+
+vboard (2.7.1-1) unstable; urgency=medium
+
+  * add Ukrainian layout, Plasma integration, and Fedora packaging
+
+ -- Chechulin Serhii <78239416+keefeere@users.noreply.github.com>  Sun, 23 Aug 2026 14:47:21 +0300
+
 vboard (2.7.0-1) unstable; urgency=medium
 
   * add --toggle and --help arguments

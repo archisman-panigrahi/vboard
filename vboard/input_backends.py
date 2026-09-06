@@ -1,4 +1,4 @@
-from .constants import MODIFIER_KEYS
+from .constants import FUNCTION_KEYS, MODIFIER_KEYS
 
 try:
     import uinput
@@ -12,6 +12,12 @@ class InputBackend:
     def emit_key(self, key_label, modifiers):
         raise NotImplementedError
 
+    def press_key(self, key_label):
+        raise NotImplementedError
+
+    def release_key(self, key_label):
+        raise NotImplementedError
+
 
 class NullInputBackend(InputBackend):
     name = "disabled"
@@ -22,6 +28,12 @@ class NullInputBackend(InputBackend):
             print(f"Warning: {reason}")
 
     def emit_key(self, key_label, modifiers):
+        return
+
+    def press_key(self, key_label):
+        return
+
+    def release_key(self, key_label):
         return
 
 
@@ -48,6 +60,12 @@ class UInputBackend(InputBackend):
             "-": uinput.KEY_MINUS,
             "=": uinput.KEY_EQUAL,
             "Backspace": uinput.KEY_BACKSPACE,
+            "Delete": uinput.KEY_DELETE,
+            "Insert": uinput.KEY_INSERT,
+            "PageUp": uinput.KEY_PAGEUP,
+            "PageDown": uinput.KEY_PAGEDOWN,
+            "Home": uinput.KEY_HOME,
+            "End": uinput.KEY_END,
             "Tab": uinput.KEY_TAB,
             "Q": uinput.KEY_Q,
             "W": uinput.KEY_W,
@@ -100,9 +118,16 @@ class UInputBackend(InputBackend):
             "Super_L": uinput.KEY_LEFTMETA,
             "Super_R": uinput.KEY_RIGHTMETA,
         }
+        self.key_map.update(
+            {
+                function_key: self._uinput_key(f"KEY_{function_key}")
+                for function_key in FUNCTION_KEYS
+            }
+        )
         if less_key is not None:
             self.key_map["<"] = less_key
         self.modifier_order = list(MODIFIER_KEYS)
+        self.held_keys = set()
         self.device = uinput.Device(list(self.key_map.values()))
 
     @staticmethod
@@ -123,13 +148,28 @@ class UInputBackend(InputBackend):
         if key_event is None:
             return
 
+        transient_modifiers = []
         for mod_key in self.modifier_order:
-            if modifiers.get(mod_key, False):
+            if modifiers.get(mod_key, False) and mod_key not in self.held_keys:
                 self.device.emit(self.key_map[mod_key], 1)
+                transient_modifiers.append(mod_key)
 
         self.device.emit(key_event, 1)
         self.device.emit(key_event, 0)
 
-        for mod_key in self.modifier_order:
-            if modifiers.get(mod_key, False):
-                self.device.emit(self.key_map[mod_key], 0)
+        for mod_key in transient_modifiers:
+            self.device.emit(self.key_map[mod_key], 0)
+
+    def press_key(self, key_label):
+        key_event = self.key_map.get(key_label)
+        if key_event is None or key_label in self.held_keys:
+            return
+        self.device.emit(key_event, 1)
+        self.held_keys.add(key_label)
+
+    def release_key(self, key_label):
+        key_event = self.key_map.get(key_label)
+        if key_event is None or key_label not in self.held_keys:
+            return
+        self.device.emit(key_event, 0)
+        self.held_keys.remove(key_label)

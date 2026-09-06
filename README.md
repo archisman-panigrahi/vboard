@@ -1,5 +1,5 @@
 # <img src="io.github.archisman-panigrahi.vboard.svg" align="left" width="100" height="100">  <br> vboard
-*A virtual keyboard for GNU/Linux with Wayland support on KDE Plasma, plus GNOME support via Xwayland, and Ctrl, Alt, Tab and Super (Meta/Win) keys.*
+*A configurable virtual keyboard for GNU/Linux with Wayland support on KDE Plasma, GNOME support via Xwayland, and desktop-oriented modifier, function, and navigation keys.*
 
 *Wayland-compatible on KDE Plasma; also works on GNOME via Xwayland*.
 
@@ -19,18 +19,27 @@ vboard is a lightweight, customizable virtual keyboard designed for Linux deskto
 - Accessibility needs
 - Kiosk applications
 
-The keyboard supports customizable colors, opacity settings, and can be easily modified to support different layouts.
+The keyboard supports customizable colors and opacity, six built-in layouts,
+and user-defined JSON layouts.
 
 ## Features
 - **Customizable appearance**: Change background color and opacity
 - **Persistent settings**: Configuration is saved between sessions
 - **Modifier key support**: Provide Ctrl, Alt, Tab and Super (Meta/Win) keys
+- **Function and navigation keys**: Includes F1-F12, arrows, Delete, Insert, Page Up, Page Down, Home, and End
+- **Multiple layouts**: Includes English (US), German, French, Russian, Swedish, and Ukrainian layouts, plus user-defined JSON layouts
+- **Plasma layout synchronization**: Follows supported KDE Plasma keyboard layouts and provides a configurable quick-switch key
 - **Desktop compatibility**: Native Wayland-friendly behavior on KDE Plasma, with GNOME support via Xwayland fallback
-- **Hold for repetitive clicks**: Keep holding the mouse button to trigger repeated clicks
-- **Word suggestions**: Offers completions from an installed Hunspell dictionary while you type with vboard
-- **Gesture typing**: Swipe across letter keys and vboard will decode the path into a word
+- **Mouse and multitouch hold support**: Hold ordinary keys for repeat, or hold modifiers with one finger while pressing keys with another
+- **Word suggestions**: Offers Unicode completions from the Hunspell dictionary that matches the active vboard layout
+- **Gesture typing**: Swipe across letter keys in the active layout and vboard will decode the path with its matching Hunspell dictionary
+- **Plasma widget**: Includes an optional one-click panel/desktop widget for showing or hiding vboard
 - **Compact interface**: Headerbar with minimal controls to save screen space
 - **Tray icon support**: Keeps vboard running in the background and you can quickly reopen it when needed
+- **True dock mode**: Uses Wayland layer shell to reserve space at the bottom so normal windows do not sit underneath the keyboard
+- **Text-field auto-show on Plasma Wayland**: Follows KWin's text-input state while yielding to Plasma Keyboard whenever its secure panel is visible
+- **Secure Plasma integration**: An optional wrapper keeps KDE's native keyboard for lock screen and SDDM while making the language key switch directly without a popup
+- **No duplicate Plasma keyboard**: While Vboard is visible on Plasma Wayland, KWin's native input panel is temporarily disabled and its mode is restored when Vboard hides
 - **uinput input backend**: Injects keys through Linux `uinput`
 
 Implementation notes for gesture typing are documented in [GESTURE_TYPING.md](./GESTURE_TYPING.md).
@@ -39,7 +48,7 @@ Implementation notes for gesture typing are documented in [GESTURE_TYPING.md](./
 
 ### Ubuntu/Debian: `.deb` package
 
-Download the latest `.deb` from the [GitHub Releases](https://github.com/archisman-panigrahi/vboard/releases) page for a lightweight on-screen keyboard with modifier keys such as Ctrl, Alt, Shift, and Super, then install it with:
+Download the latest `.deb` from this fork's [GitHub Releases](https://github.com/keefeere/vboard/releases) page, then install it with:
 
 ```bash
 sudo apt install ./vboard_*.deb
@@ -68,7 +77,7 @@ sudo apt install vboard
 For the latest unreleased changes on Ubuntu and Debian-based systems, use the automated setup script:
 
 ```bash
-git clone https://github.com/archisman-panigrahi/vboard.git
+git clone https://github.com/keefeere/vboard.git
 cd vboard
 sudo bash setup-ubuntu-debian.sh
 ```
@@ -83,7 +92,7 @@ For Debian/Ubuntu, Fedora, Arch, and other distributions, install the dependenci
 
 **For Debian/Ubuntu-based distributions:**
 ```bash
-sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build --no-install-recommends
+sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 python3-uinput gir1.2-ayatanaappindicator3-0.1 meson ninja-build --no-install-recommends
 ```
 Optional for word suggestions:
 ```bash
@@ -92,12 +101,28 @@ sudo apt install hunspell-en-us
 
 **For Fedora-based distributions:**
 ```bash
-sudo dnf install python3-gobject python3-cairo gtk3 python3-uinput python3-setuptools libappindicator-gtk3 meson ninja-build
+sudo dnf install python3-gobject python3-cairo gtk3 gtk-layer-shell python3-uinput python3-setuptools libappindicator-gtk3 meson ninja-build
 ```
 Optional for word suggestions:
 ```bash
-sudo dnf install hunspell-en-US
+sudo dnf install hunspell-en-US hunspell-uk
 ```
+
+Release builds also provide `vboard` and `vboard-plasma` RPMs for Fedora 44.
+Install both packages for the keyboard and its optional Plasma widget. On an
+immutable Bazzite system, local RPMs must be layered with `rpm-ostree` and take
+effect after a reboot; use the user-only source installation below if you want
+to avoid package layering.
+
+For only the dock-mode dependency on Bazzite/Fedora Atomic, use the additive
+live-apply form when no conflicting deployment is pending:
+
+```bash
+rpm-ostree install -yA gtk-layer-shell
+```
+
+If rpm-ostree cannot live-apply it, the package becomes active after reboot.
+Do not use `apply-live --allow-replacement` for this dependency.
 
 In Fedora KDE, you will also have to create a symlink for qdbus
 ```
@@ -116,7 +141,7 @@ sudo pacman -S hunspell-en_us
 ### 2. Clone the repository
 
 ```bash
-git clone https://github.com/archisman-panigrahi/vboard.git
+git clone https://github.com/keefeere/vboard.git
 cd vboard
 ```
 
@@ -162,21 +187,99 @@ For system installs:
 sudo meson compile -C builddir uninstall-local
 ```
 
-### KDE Plasma: enable vboard as the default on-screen keyboard
+### KDE Plasma: text fields, direct language switch, lock screen, and SDDM
 
-After installation, open **System Settings**, search for **Virtual Keyboard**, and select **Vboard**.
+Vboard's main window injects desktop keys through `uinput`; it is deliberately
+not run inside the lock screen or login greeter. The install also provides
+**Vboard Plasma Keyboard**, a wrapper around KDE's native secure keyboard (in
+the `vboard-plasma` subpackage on Fedora). It retains Plasma's input-method
+protocol and changes the language button from a popup into direct layout
+cycling. It does this with a process-local, update-safe copy of Plasma's own
+layouts: each `ChangeLanguageKey` directly selects the next enabled locale,
+while the system layouts remain untouched.
+
+Select it for the current Plasma session with:
+
+```bash
+~/.local/share/vboard/scripts/configure-plasma-keyboard.sh --desktop-and-lock-screen
+```
+
+For a system package installation, use
+`/usr/share/vboard/scripts/configure-plasma-keyboard.sh` instead. You can also
+select **Vboard Plasma Keyboard** in **System Settings → Virtual Keyboard**.
+The same KWin input method is then available on Plasma's lock screen.
+
+While Vboard is visible on the unlocked Plasma Wayland desktop, it temporarily
+sets KWin's native input panel to `Never` mode over the session D-Bus API. This
+prevents Plasma Keyboard from reserving a second input-panel geometry when a
+text field is touched. Vboard immediately restores the user's saved mode on
+disk, keeps only the running compositor suppressed, and restores that runtime
+mode when Vboard hides or exits without actively reopening Plasma Keyboard.
+Suppression is released before the session locks, so the wrapped native
+keyboard remains available on the lock screen. This does not change
+`VirtualKeyboardEnabled` or the configured input-method provider.
+
+Plasma does not expose separate input-method provider selectors for the
+unlocked desktop and lock screen: both belong to the same running KWin and use
+the `InputMethod` entry in `kwinrc`. Vboard's GTK dock is used only on the
+unlocked desktop; the wrapped native Plasma Keyboard remains the secure
+provider that the lock screen can display. SDDM is genuinely separate because
+it starts its own KWin compositor, so it is configured independently below.
+
+To apply the wrapper to a Wayland SDDM greeter after a system-wide install:
+
+```bash
+sudo /usr/share/vboard/scripts/configure-plasma-keyboard.sh --sddm
+```
+
+This writes a separate SDDM drop-in and does not restart the display manager;
+it takes effect on the next SDDM start. The generated layout tree lives in each
+account's cache and is refreshed automatically whenever Plasma's installed
+layouts change, so Plasma upgrades do not overwrite it. Plasma Keyboard 6.7
+uses its own external language popup, which is why changing only Qt's Breeze
+style is insufficient.
+
+Enable **Dock Mode** in Vboard Options and restart Vboard to reserve the bottom
+work area, or use the `⌄` header button to switch immediately. Dock mode forces
+an opaque keyboard surface; the configured transparency is kept for floating
+mode. Enable **Auto-show on text fields** to follow KWin's Wayland
+text-input state. When native Plasma Keyboard is visible (including secure
+screens), Vboard hides and lets it take precedence.
+
+### KDE Plasma: install the toggle widget
+
+The Fedora release provides the widget in the separate `vboard-plasma` RPM.
+Install both binary RPMs to get the keyboard and widget; the `.src.rpm` is only
+source code and is not needed for normal installation. The current `.deb`
+installs the keyboard only.
+
+When installing from a source checkout, install the included Plasma 6 widget
+for the current user with:
+
+```bash
+kpackagetool6 --type Plasma/Applet --install plasmoid/package
+```
+
+Then open Plasma's **Add Widgets** view, search for **Vboard Keyboard**, and drag
+it onto a panel or the desktop. Use `--upgrade` instead of `--install` after
+changing the widget source.
 
 ## Usage
 When launched, vboard presents a compact keyboard with a minimal interface. The keyboard includes:
-- Standard QWERTY layout keys
+- English (US), German (QWERTZ), French (AZERTY), Russian, Swedish, and Ukrainian layouts
 - Arrow keys
 - Modifier keys (Shift, Ctrl, Alt, Super)
-- Header-bar suggestions that appear while typing words through vboard when a system Hunspell dictionary is available
+- F1-F12 function keys in the header bar
+- Delete, Insert, Page Up, Page Down, Home, and End navigation keys
+- Header-bar suggestions that follow vboard's active layout when a matching system or user Hunspell dictionary is available
 - Experimental swipe typing on alphabetic keys: drag across the intended letters and release to insert the best matching dictionary word
+- Multitouch modifiers: keep Shift, Ctrl, Alt, or Super held with one finger and press another key with a second finger
+- Hold-to-repeat for keyboard, function, and navigation keys after a short delay
 
 ### Interface Controls
 - ☰ (menu) - Toggle visibility of other interface controls
 - **Options** - Open in-app options for typing, startup, layout, about, bug reports, and quit actions
+- **UA/EN, RU/EN, …** - Switch between English and the secondary layout selected in Options
 - `+ -` Increase opacity
 - `- -` Decrease opacity
 - **Background dropdown** - Change the keyboard background color or pick an enhanced color theme
@@ -184,18 +287,34 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 - **Tray icon click** - Hide or show vboard
 - **Tray icon right-click** - Open tray controls when the tray backend supports a separate context menu
 
+Run `vboard --toggle` to start and show vboard when it is not running, or to
+show/hide the existing instance. The included Plasma widget uses this command,
+and it remains responsive when **Start Minimized** is enabled. On Plasma
+Wayland, this path disables the native input panel before mapping the Vboard
+window, avoiding overlap and duplicate reserved geometry between the two
+keyboards.
+
 ## Configuration
 vboard saves its settings to `~/.config/vboard/settings.conf`. This configuration file stores:
 - Background color
 - Theme style
 - Text prediction enabled/disabled state
 - Gesture typing enabled/disabled state
+- Gesture visual feedback enabled/disabled state
 - Start minimized enabled/disabled state
+- Dock mode enabled/disabled state
+- Text-field auto-show enabled/disabled state
 - Keyboard layout
+- Secondary keyboard layout used by the quick-switch key
 - Opacity level
 - Text color
 
 You can manually edit this file or use the built-in interface controls to customize vboard.
+
+Hunspell dictionaries are searched in `~/.local/share/hunspell/`,
+`~/.hunspell/`, and the usual system dictionary directories. For example, the
+Ukrainian layout looks for `uk_UA.dic` or `uk.dic` and the English layout looks
+for `en_US.dic`, `en_GB.dic`, or `en.dic`.
 
 ## Customizing Keyboard Layout
 Keyboard layouts are JSON files. Packaged layouts are installed to:
@@ -292,5 +411,12 @@ This project is licensed under GPLv3.
 ## License
 vboard is licensed under the GNU General Public License v3. See `LICENSE` for details.
 
-## Note
-Currently only the QWERTY US layout is supported.
+## Layout support
+
+Vboard ships with English (US), German, French, Russian, Swedish, and Ukrainian
+layouts. On KDE Plasma, supported system layouts (`us`, `de`, `fr`, `ru`, `se`,
+and `ua`) are synchronized through Plasma's keyboard-layout service. The
+quick-switch key alternates between English and the **Secondary Layout** chosen
+in Options. Additional vboard layouts can be supplied as user JSON files, but
+automatic Plasma synchronization requires a corresponding XKB mapping in
+`vboard/plasma_layouts.py`.
