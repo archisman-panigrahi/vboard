@@ -114,7 +114,6 @@ class KWinVirtualKeyboardSuppressor:
         self.vboard_visible = False
         self.screen_locked = False
         self.suppression_active = False
-        self._restore_active = False
         self._enforce_timer_id = None
 
     def _new_proxy(self, bus_name, object_path, interface):
@@ -225,18 +224,13 @@ class KWinVirtualKeyboardSuppressor:
     def _apply_requested_state(self):
         should_suppress = self.vboard_visible and not self.screen_locked
         if should_suppress and not self.suppression_active:
-            self._restore_active = self._get_bool("active")
             self.suppression_active = True
             self._set_active(False)
         elif not should_suppress and self.suppression_active:
             self._release_suppression()
 
     def _release_suppression(self):
-        restore_active = self._restore_active
         self.suppression_active = False
-        self._restore_active = False
-        if restore_active:
-            self._set_active(True)
 
     def _on_properties_changed(self, proxy, changed, invalidated):
         names = set(changed.unpack()) | set(invalidated)
@@ -245,7 +239,6 @@ class KWinVirtualKeyboardSuppressor:
             and "active" in names
             and self._get_bool("active")
         ):
-            self._restore_active = True
             self._queue_enforcement()
 
     def _on_kwin_signal(self, proxy, sender_name, signal_name, parameters):
@@ -254,7 +247,6 @@ class KWinVirtualKeyboardSuppressor:
             and self.suppression_active
             and self._get_bool("active")
         ):
-            self._restore_active = True
             self._queue_enforcement()
 
     def _queue_enforcement(self):

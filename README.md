@@ -210,11 +210,12 @@ select **Vboard Plasma Keyboard** in **System Settings → Virtual Keyboard**.
 The same KWin input method is then available on Plasma's lock screen.
 
 While Vboard is visible on the unlocked Plasma Wayland desktop, it temporarily
-deactivates KWin's native input panel over the session D-Bus API. The previous
-state is restored when Vboard hides or exits. Suppression is released before
-the session locks, so the wrapped native keyboard remains available on the
-lock screen. This does not change `VirtualKeyboardEnabled` or the configured
-input-method provider.
+deactivates KWin's native input panel over the session D-Bus API. When Vboard
+hides or exits, it stops suppressing the panel without actively reopening it;
+KWin can show it naturally on the next text-field interaction. Suppression is
+released before the session locks, so the wrapped native keyboard remains
+available on the lock screen. This does not change `VirtualKeyboardEnabled` or
+the configured input-method provider.
 
 Plasma does not expose separate input-method provider selectors for the
 unlocked desktop and lock screen: both belong to the same running KWin and use

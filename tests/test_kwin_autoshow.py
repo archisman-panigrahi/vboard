@@ -131,13 +131,13 @@ class KWinVirtualKeyboardSuppressorTest(unittest.TestCase):
         suppressor.proxy = FakeProxy(active)
         return suppressor, glib
 
-    def test_deactivates_and_restores_an_active_system_keyboard(self):
+    def test_deactivates_without_reopening_the_system_keyboard_on_hide(self):
         suppressor, glib = self.make_suppressor(True)
 
         suppressor.set_vboard_visible(True)
         suppressor.set_vboard_visible(False)
 
-        self.assertEqual(suppressor.proxy.calls, [False, True])
+        self.assertEqual(suppressor.proxy.calls, [False])
         self.assertFalse(suppressor.suppression_active)
 
     def test_does_not_activate_a_system_keyboard_that_was_inactive(self):
@@ -148,7 +148,7 @@ class KWinVirtualKeyboardSuppressorTest(unittest.TestCase):
 
         self.assertEqual(suppressor.proxy.calls, [False])
 
-    def test_represses_kwin_reactivation_and_restores_it_later(self):
+    def test_represses_kwin_reactivation_without_reopening_on_hide(self):
         suppressor, glib = self.make_suppressor(False)
         suppressor.set_vboard_visible(True)
         suppressor.proxy.active = True
@@ -162,7 +162,7 @@ class KWinVirtualKeyboardSuppressorTest(unittest.TestCase):
         glib.flush()
         suppressor.set_vboard_visible(False)
 
-        self.assertEqual(suppressor.proxy.calls, [False, False, True])
+        self.assertEqual(suppressor.proxy.calls, [False, False])
 
     def test_releases_for_lock_screen_and_resuppresses_after_unlock(self):
         suppressor, glib = self.make_suppressor(True)
@@ -171,7 +171,7 @@ class KWinVirtualKeyboardSuppressorTest(unittest.TestCase):
         suppressor._set_screen_locked(True)
         suppressor._set_screen_locked(False)
 
-        self.assertEqual(suppressor.proxy.calls, [False, True, False])
+        self.assertEqual(suppressor.proxy.calls, [False, False])
         self.assertTrue(suppressor.suppression_active)
 
 
