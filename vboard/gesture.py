@@ -401,6 +401,14 @@ class GestureTypingController:
         self.finish_gesture(key_event)
         return True
 
+    def cancel_key_gesture(self, widget):
+        if self.active_gesture is None or self.active_gesture["widget"] is not widget:
+            return False
+        self.active_gesture = None
+        self._pending_gesture_points = []
+        self.schedule_gesture_feedback_clear()
+        return True
+
     def refresh_layout_cache(self):
         gesture_key_centers = {}
         gesture_key_rects = {}

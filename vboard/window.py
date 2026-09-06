@@ -544,6 +544,8 @@ class VirtualKeyboard(Gtk.Window):
     BASE_SUGGESTION_SPACING = 4
     BASE_SUGGESTION_MARGIN = 3
     BASE_SUGGESTION_MARGIN_BOTTOM = 1
+    KEY_REPEAT_DELAY_MS = 400
+    KEY_REPEAT_INTERVAL_MS = 100
 
     def __init__(self, application=None):
         super().__init__(title=APP_DISPLAY_NAME, name="toplevel")
@@ -607,6 +609,8 @@ class VirtualKeyboard(Gtk.Window):
         self.dock_active = configure_dock_window(self, self.dock_mode)
         self.text_input_monitor = None
         self._suppress_next_auto_hide = False
+        self.active_touch_keys = {}
+        self.held_touch_modifiers = {}
 
         self.modifiers = {mod_key: False for mod_key in MODIFIER_KEYS}
         self.color_map = dict(COLOR_CHOICES)
@@ -711,6 +715,7 @@ class VirtualKeyboard(Gtk.Window):
 
         self.sync_caps_lock_from_system(connect=True)
         self.initialize_text_input_monitor()
+        self.connect("hide", self.on_window_hidden)
         self.connect("destroy", self.on_destroy_integrations)
 
     def get_app_icon_name(self):
@@ -890,6 +895,12 @@ class VirtualKeyboard(Gtk.Window):
             self.set_header_controls_visible(False)
             self.hide()
         else:
+            application = self.get_application()
+            if application is not None and hasattr(
+                application,
+                "update_system_keyboard_suppression",
+            ):
+                application.update_system_keyboard_suppression(True)
             self.show_all()
             self.set_header_controls_visible(False)
             self.present()
@@ -1373,7 +1384,7 @@ class VirtualKeyboard(Gtk.Window):
         self.header.pack_start(self.header_key_box)
 
         self.esc_button = Gtk.Button(label="ESC")
-        self.esc_button.connect("clicked", lambda widget: self.emit_key("Esc"))
+        self.connect_key_input_events(self.esc_button, "Esc")
         self.esc_button.set_name("esc-button")
         self.register_header_button(self.esc_button)
         self.header_key_box.pack_start(self.esc_button, False, False, 0)
@@ -1382,10 +1393,7 @@ class VirtualKeyboard(Gtk.Window):
         for function_key in FUNCTION_KEYS:
             button = Gtk.Button(label=function_key)
             button.set_name("function-button")
-            button.connect(
-                "clicked",
-                lambda widget, key=function_key: self.emit_key(key),
-            )
+            self.connect_key_input_events(button, function_key)
             self.register_header_button(button)
             self.header_key_box.pack_start(button, False, False, 0)
             self.function_buttons.append(button)
@@ -1661,7 +1669,7 @@ class VirtualKeyboard(Gtk.Window):
 
     def on_dock_button_clicked(self, widget=None):
         self.set_dock_mode(not self.dock_mode)
-        application = self.get_application()
+        application = self.get_application() if hasattr(self, "get_application") else None
         if application is not None and hasattr(application, "recreate_window"):
             GLib.idle_add(application.recreate_window)
 
@@ -1691,6 +1699,10 @@ class VirtualKeyboard(Gtk.Window):
     def on_text_input_visibility_changed(self, should_show):
         if not self.auto_show_on_text_fields:
             return
+        application = self.get_application() if hasattr(self, "get_application") else None
+        suppressor = getattr(application, "system_keyboard_suppressor", None)
+        if suppressor is not None and suppressor.screen_locked:
+            return
         if not should_show and self._suppress_next_auto_hide:
             self._suppress_next_auto_hide = False
             return
@@ -1710,9 +1722,13 @@ class VirtualKeyboard(Gtk.Window):
         self._suppress_next_auto_hide = True
 
     def on_destroy_integrations(self, widget):
+        self.cancel_all_touch_inputs()
         if self.text_input_monitor is not None:
             self.text_input_monitor.stop()
             self.text_input_monitor = None
+
+    def on_window_hidden(self, widget):
+        self.cancel_all_touch_inputs()
 
     def preload_suggestions(self):
         self.suggestion_engine.ensure_loaded()
@@ -2574,16 +2590,7 @@ class VirtualKeyboard(Gtk.Window):
             button = Gtk.Button(label=self.get_button_label(key_event))
             button.set_can_focus(False)
             button.set_focus_on_click(False)
-            button.add_events(
-                Gdk.EventMask.BUTTON_PRESS_MASK
-                | Gdk.EventMask.BUTTON_RELEASE_MASK
-                | Gdk.EventMask.POINTER_MOTION_MASK
-                | Gdk.EventMask.LEAVE_NOTIFY_MASK
-            )
-            button.connect("button-press-event", self.on_key_button_press_event, key_event)
-            button.connect("motion-notify-event", self.on_key_button_motion_event, key_event)
-            button.connect("button-release-event", self.on_key_button_release_event, key_event)
-            button.connect("leave-notify-event", self.on_key_button_leave_notify_event)
+            self.connect_key_input_events(button, key_event)
             if key_event == LAYOUT_SWITCH_KEY:
                 button.set_tooltip_text(self.get_layout_switch_tooltip())
             self.key_buttons[key_event] = button
@@ -2592,6 +2599,24 @@ class VirtualKeyboard(Gtk.Window):
 
             grid.attach(button, col, row_index, width, 1)
             col += width
+
+    def connect_key_input_events(self, button, key_event):
+        button.set_can_focus(False)
+        button.set_focus_on_click(False)
+        if hasattr(button, "set_support_multidevice"):
+            button.set_support_multidevice(True)
+        button.add_events(
+            Gdk.EventMask.BUTTON_PRESS_MASK
+            | Gdk.EventMask.BUTTON_RELEASE_MASK
+            | Gdk.EventMask.POINTER_MOTION_MASK
+            | Gdk.EventMask.LEAVE_NOTIFY_MASK
+            | Gdk.EventMask.TOUCH_MASK
+        )
+        button.connect("button-press-event", self.on_key_button_press_event, key_event)
+        button.connect("motion-notify-event", self.on_key_button_motion_event, key_event)
+        button.connect("button-release-event", self.on_key_button_release_event, key_event)
+        button.connect("leave-notify-event", self.on_key_button_leave_notify_event)
+        button.connect("touch-event", self.on_key_touch_event, key_event)
 
     def get_button_label(self, key_event):
         if key_event == LAYOUT_SWITCH_KEY:
@@ -2682,6 +2707,8 @@ class VirtualKeyboard(Gtk.Window):
         self.update_suggestions()
 
     def on_key_button_press_event(self, widget, event, key_event):
+        if self.is_pointer_emulated_event(event):
+            return True
         if event.type in (Gdk.EventType._2BUTTON_PRESS, Gdk.EventType._3BUTTON_PRESS):
             return True
 
@@ -2725,7 +2752,11 @@ class VirtualKeyboard(Gtk.Window):
             return False
 
         self.emit_key(key_event)
-        self.delay_source = GLib.timeout_add(400, self.start_repeat, key_event)
+        self.delay_source = GLib.timeout_add(
+            self.KEY_REPEAT_DELAY_MS,
+            self.start_repeat,
+            key_event,
+        )
         return False
 
     def on_key_button_motion_event(self, widget, event, key_event):
@@ -2734,6 +2765,8 @@ class VirtualKeyboard(Gtk.Window):
         return False
 
     def on_key_button_release_event(self, widget, event, key_event):
+        if self.is_pointer_emulated_event(event):
+            return True
         self.schedule_key_button_visual_reset()
         if event.button != 1:
             return False
@@ -2747,6 +2780,172 @@ class VirtualKeyboard(Gtk.Window):
 
         self.stop_key_repeat()
         return False
+
+    @staticmethod
+    def is_pointer_emulated_event(event):
+        if hasattr(event, "get_pointer_emulated"):
+            try:
+                if event.get_pointer_emulated():
+                    return True
+            except (AttributeError, TypeError):
+                pass
+        if hasattr(event, "get_source_device"):
+            try:
+                device = event.get_source_device()
+                return (
+                    device is not None
+                    and device.get_source() == Gdk.InputSource.TOUCHSCREEN
+                )
+            except (AttributeError, TypeError):
+                pass
+        return False
+
+    @staticmethod
+    def get_touch_sequence_id(event):
+        sequence = None
+        if hasattr(event, "get_event_sequence"):
+            sequence = event.get_event_sequence()
+        elif hasattr(event, "sequence"):
+            sequence = event.sequence
+        return id(sequence) if sequence is not None else id(event)
+
+    def on_key_touch_event(self, widget, event, key_event):
+        sequence_id = self.get_touch_sequence_id(event)
+        if event.type == Gdk.EventType.TOUCH_BEGIN:
+            self.begin_touch_key(sequence_id, widget, event, key_event)
+        elif event.type == Gdk.EventType.TOUCH_UPDATE:
+            self.update_touch_key(sequence_id, widget, event)
+        elif event.type in (Gdk.EventType.TOUCH_END, Gdk.EventType.TOUCH_CANCEL):
+            self.finish_touch_key(
+                sequence_id,
+                event,
+                cancelled=event.type == Gdk.EventType.TOUCH_CANCEL,
+            )
+        return True
+
+    def begin_touch_key(self, sequence_id, widget, event, key_event):
+        if sequence_id in self.active_touch_keys:
+            return
+
+        self.clear_key_button_visual_states(except_button=widget)
+        self.clear_suggestion_override(update=False)
+        state = {
+            "widget": widget,
+            "key_event": key_event,
+            "last_event": event,
+            "delay_source": None,
+            "repeat_source": None,
+            "gesture_pending": False,
+            "kind": "key",
+        }
+        self.active_touch_keys[sequence_id] = state
+
+        if key_event == "CapsLock":
+            state["kind"] = "special"
+            self.toggle_caps_lock()
+            self.reset_modifiers()
+            return
+
+        if key_event == LAYOUT_SWITCH_KEY:
+            state["kind"] = "special"
+            self.switch_to_next_keyboard_layout()
+            self.reset_modifiers()
+            return
+
+        if key_event in self.modifiers:
+            state["kind"] = "modifier"
+            held_count = self.held_touch_modifiers.get(key_event, 0)
+            self.held_touch_modifiers[key_event] = held_count + 1
+            if held_count == 0:
+                self.backend.press_key(key_event)
+                self.update_modifier(key_event, True)
+                self.update_key_labels()
+            return
+
+        if (
+            self.gesture_controller is not None
+            and self.gesture_controller.active_gesture is None
+            and self.gesture_controller.handle_key_press(widget, event, key_event)
+        ):
+            state["gesture_pending"] = True
+        else:
+            self.emit_key(key_event)
+
+        state["delay_source"] = GLib.timeout_add(
+            self.KEY_REPEAT_DELAY_MS,
+            self.start_touch_repeat,
+            sequence_id,
+        )
+
+    def update_touch_key(self, sequence_id, widget, event):
+        state = self.active_touch_keys.get(sequence_id)
+        if state is None:
+            return
+        state["last_event"] = event
+        if state["gesture_pending"] and self.gesture_controller is not None:
+            self.gesture_controller.handle_key_motion(widget, event)
+
+    def start_touch_repeat(self, sequence_id):
+        state = self.active_touch_keys.get(sequence_id)
+        if state is None or state["kind"] != "key":
+            return False
+        state["delay_source"] = None
+        if state["gesture_pending"] and self.gesture_controller is not None:
+            self.gesture_controller.handle_key_release(
+                state["widget"],
+                state["last_event"],
+                state["key_event"],
+            )
+            state["gesture_pending"] = False
+        state["repeat_source"] = GLib.timeout_add(
+            self.KEY_REPEAT_INTERVAL_MS,
+            self.repeat_touch_key,
+            sequence_id,
+        )
+        return False
+
+    def repeat_touch_key(self, sequence_id):
+        state = self.active_touch_keys.get(sequence_id)
+        if state is None or state["kind"] != "key":
+            return False
+        self.emit_key(state["key_event"])
+        return True
+
+    def finish_touch_key(self, sequence_id, event=None, cancelled=False):
+        state = self.active_touch_keys.pop(sequence_id, None)
+        if state is None:
+            return
+
+        for source_name in ("delay_source", "repeat_source"):
+            source_id = state[source_name]
+            if source_id is not None:
+                GLib.source_remove(source_id)
+
+        key_event = state["key_event"]
+        if state["kind"] == "modifier":
+            held_count = self.held_touch_modifiers.get(key_event, 0)
+            if held_count <= 1:
+                self.held_touch_modifiers.pop(key_event, None)
+                self.backend.release_key(key_event)
+                self.update_modifier(key_event, False)
+                self.update_key_labels()
+            else:
+                self.held_touch_modifiers[key_event] = held_count - 1
+        elif state["gesture_pending"] and self.gesture_controller is not None:
+            if cancelled:
+                self.gesture_controller.cancel_key_gesture(state["widget"])
+            else:
+                self.gesture_controller.handle_key_release(
+                    state["widget"],
+                    event or state["last_event"],
+                    key_event,
+                )
+
+        self.schedule_key_button_visual_reset()
+
+    def cancel_all_touch_inputs(self):
+        for sequence_id in list(self.active_touch_keys):
+            self.finish_touch_key(sequence_id, cancelled=True)
 
     def on_key_button_leave_notify_event(self, widget, event):
         widget.unset_state_flags(Gtk.StateFlags.ACTIVE | Gtk.StateFlags.PRELIGHT)
@@ -2784,7 +2983,11 @@ class VirtualKeyboard(Gtk.Window):
             del self.repeat_source
 
     def start_repeat(self, key_event):
-        self.repeat_source = GLib.timeout_add(100, self.repeat_key, key_event)
+        self.repeat_source = GLib.timeout_add(
+            self.KEY_REPEAT_INTERVAL_MS,
+            self.repeat_key,
+            key_event,
+        )
         return False
 
     def repeat_key(self, key_event):
@@ -2813,7 +3016,7 @@ class VirtualKeyboard(Gtk.Window):
 
     def reset_modifiers(self):
         for mod_key, active in self.modifiers.items():
-            if active:
+            if active and mod_key not in self.held_touch_modifiers:
                 self.update_modifier(mod_key, False)
         self.update_key_labels()
 

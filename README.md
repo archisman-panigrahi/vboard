@@ -30,7 +30,7 @@ and user-defined JSON layouts.
 - **Multiple layouts**: Includes English (US), German, French, Russian, Swedish, and Ukrainian layouts, plus user-defined JSON layouts
 - **Plasma layout synchronization**: Follows supported KDE Plasma keyboard layouts and provides a configurable quick-switch key
 - **Desktop compatibility**: Native Wayland-friendly behavior on KDE Plasma, with GNOME support via Xwayland fallback
-- **Hold for repetitive clicks**: Keep holding the mouse button to trigger repeated clicks
+- **Mouse and multitouch hold support**: Hold ordinary keys for repeat, or hold modifiers with one finger while pressing keys with another
 - **Word suggestions**: Offers Unicode completions from the Hunspell dictionary that matches the active vboard layout
 - **Gesture typing**: Swipe across letter keys in the active layout and vboard will decode the path with its matching Hunspell dictionary
 - **Plasma widget**: Includes an optional one-click panel/desktop widget for showing or hiding vboard
@@ -39,6 +39,7 @@ and user-defined JSON layouts.
 - **True dock mode**: Uses Wayland layer shell to reserve space at the bottom so normal windows do not sit underneath the keyboard
 - **Text-field auto-show on Plasma Wayland**: Follows KWin's text-input state while yielding to Plasma Keyboard whenever its secure panel is visible
 - **Secure Plasma integration**: An optional wrapper keeps KDE's native keyboard for lock screen and SDDM while making the language key switch directly without a popup
+- **No duplicate Plasma keyboard**: While Vboard is visible on Plasma Wayland, KWin's native input panel is temporarily deactivated and restored when Vboard hides
 - **uinput input backend**: Injects keys through Linux `uinput`
 
 Implementation notes for gesture typing are documented in [GESTURE_TYPING.md](./GESTURE_TYPING.md).
@@ -208,6 +209,13 @@ For a system package installation, use
 select **Vboard Plasma Keyboard** in **System Settings → Virtual Keyboard**.
 The same KWin input method is then available on Plasma's lock screen.
 
+While Vboard is visible on the unlocked Plasma Wayland desktop, it temporarily
+deactivates KWin's native input panel over the session D-Bus API. The previous
+state is restored when Vboard hides or exits. Suppression is released before
+the session locks, so the wrapped native keyboard remains available on the
+lock screen. This does not change `VirtualKeyboardEnabled` or the configured
+input-method provider.
+
 Plasma does not expose separate input-method provider selectors for the
 unlocked desktop and lock screen: both belong to the same running KWin and use
 the `InputMethod` entry in `kwinrc`. Vboard's GTK dock is used only on the
@@ -262,6 +270,8 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 - Delete, Insert, Page Up, Page Down, Home, and End navigation keys
 - Header-bar suggestions that follow vboard's active layout when a matching system or user Hunspell dictionary is available
 - Experimental swipe typing on alphabetic keys: drag across the intended letters and release to insert the best matching dictionary word
+- Multitouch modifiers: keep Shift, Ctrl, Alt, or Super held with one finger and press another key with a second finger
+- Hold-to-repeat for keyboard, function, and navigation keys after a short delay
 
 ### Interface Controls
 - ☰ (menu) - Toggle visibility of other interface controls
@@ -276,7 +286,9 @@ When launched, vboard presents a compact keyboard with a minimal interface. The 
 
 Run `vboard --toggle` to start and show vboard when it is not running, or to
 show/hide the existing instance. The included Plasma widget uses this command,
-and it remains responsive when **Start Minimized** is enabled.
+and it remains responsive when **Start Minimized** is enabled. On Plasma
+Wayland, this path deactivates the native input panel before mapping the Vboard
+window, avoiding a brief overlap between the two keyboards.
 
 ## Configuration
 vboard saves its settings to `~/.config/vboard/settings.conf`. This configuration file stores:

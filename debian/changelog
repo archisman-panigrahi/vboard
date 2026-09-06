@@ -1,3 +1,9 @@
+vboard (2.10.0-1) unstable; urgency=medium
+
+  * Add multitouch holds and suppress the native Plasma keyboard while Vboard is visible
+
+ -- Chechulin Serhii <78239416+keefeere@users.noreply.github.com>  Sun, 06 Sep 2026 13:50:00 +0300
+
 vboard (2.9.2-1) unstable; urgency=medium
 
   * Fix dock-mode visibility and make Plasma language keys cycle directly

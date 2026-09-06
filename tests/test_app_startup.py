@@ -103,6 +103,19 @@ class StartupVisibilityTest(unittest.TestCase):
 
         self.assertEqual(window.calls, ["toggle"])
 
+    def test_system_keyboard_is_suppressed_before_vboard_is_mapped(self):
+        calls = []
+        window = FakeWindow()
+        window.show_all = lambda: calls.append("show")
+        suppressor = SimpleNamespace(
+            set_vboard_visible=lambda visible: calls.append(("suppress", visible))
+        )
+        application = SimpleNamespace(system_keyboard_suppressor=suppressor)
+
+        VboardApplication.show_window(application, window)
+
+        self.assertEqual(calls[:2], [("suppress", True), "show"])
+
     def test_dock_change_recreates_the_window(self):
         window = FakeWindow()
         application = SimpleNamespace(
