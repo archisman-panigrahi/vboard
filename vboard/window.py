@@ -2135,11 +2135,9 @@ class VirtualKeyboard(Gtk.Window):
         shift_active = self.modifiers["Shift_L"] or self.modifiers["Shift_R"]
         key_label = key_labels.get(key_event, key_event)
 
-        if len(key_label) == 1 and key_label.isalpha():
-            uppercase_active = shift_active != self.caps_lock_active
-            return key_label.upper() if uppercase_active else key_label.lower()
-
         if shift_active and key_event in shifted_map:
+            return shifted_map[key_event]
+        if len(key_label) == 1 and key_label.isalpha():
             return shifted_map[key_event]
 
         return key_label
